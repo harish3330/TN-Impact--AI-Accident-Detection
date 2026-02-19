@@ -1,0 +1,55 @@
+{
+  "cameras": {
+    "camera_1": {
+      "source": "data/sample_videos/demo.mp4",
+      "name": "Manufacturing Floor - Zone A",
+      "restricted_zones": [
+        {
+          "name": "Machine Area 1",
+          "points": [[100, 50], [600, 50], [600, 400], [100, 400]],
+          "type": "no_entry"
+        },
+        {
+          "name": "Equipment Storage",
+          "points": [[50, 450], [300, 450], [300, 700], [50, 700]],
+          "type": "restricted"
+        }
+      ],
+      "ppe_required_zones": ["Machine Area 1"],
+      "ppe_required": false,
+      "fall_detection": true,
+      "proximity_detection": true,
+      "proximity_threshold_px": 50,
+      "alert_contacts": ["safety@factory.com"]
+    },
+    "camera_2": {
+      "source": "data/sample_videos/demo2.mp4",
+      "name": "Warehouse - Loading Dock",
+      "restricted_zones": [
+        {
+          "name": "Forklift Zone",
+          "points": [[0, 200], [800, 200], [800, 600], [0, 600]],
+          "type": "vehicle_only"
+        }
+      ],
+      "ppe_required": true,
+      "ppe_required_zones": ["Forklift Zone"],
+      "fall_detection": true,
+      "proximity_detection": true,
+      "proximity_threshold_px": 80,
+      "alert_contacts": ["supervisor@factory.com"]
+    }
+  },
+  "alerts": {
+    "email_enabled": true,
+    "sound_enabled": true,
+    "cooldown_seconds": 30,
+    "default_recipient": "safety@factory.com"
+  },
+  "detection": {
+    "confidence_threshold": 0.5,
+    "fps_processing": 5,
+    "fall_detection_frames": 15,
+    "proximity_detection_frames": 10
+  }
+}

@@ -1,4 +1,19 @@
-"""CLI entry point – run SafeWatch AI with an OpenCV display window.
+#!/usr/bin/env python3
+"""
+SafeWatch AI - CLI Entry Point
+
+Command-line interface for the industrial accident detection system.
+Provides an interactive menu for selecting video sources and displays
+real-time detection results in an OpenCV window.
+
+Usage:
+    python main.py
+
+Features:
+- Interactive source selection (webcam, sample videos, custom)
+- Real-time video processing with YOLOv8 detection
+- Live incident detection with sound alerts
+- OpenCV visualization with annotations
 
 For the web dashboard, use: streamlit run dashboard/app.py
 """
@@ -28,8 +43,10 @@ logger = logging.getLogger(__name__)
 
 _SOURCES = {
     "1": ("Webcam", "0"),
-    "2": ("Sample video 1", "data/sample_videos/demo.mp4"),
-    "3": ("Sample video 2", "data/sample_videos/demo2.mp4"),
+    "2": ("Sample video 1 (Demo)", "data/sample_videos/demo.mp4"),
+    "3": ("Sample video 2 (Airgas)", "data/sample_videos/workplace_safety_1.mp4"),
+    "4": ("Sample video 3 (Blocked In)", "data/sample_videos/workplace_safety_2.mp4"),
+    "5": ("Sample video 4 (Behind Curve)", "data/sample_videos/workplace_safety_3.mp4"),
 }
 
 
@@ -40,12 +57,12 @@ def _choose_source() -> str:
     print("\nVideo source:")
     for k, (label, _) in _SOURCES.items():
         print(f"  {k}. {label}")
-    print("  4. Custom file / RTSP URL")
+    print("  6. Custom file / RTSP URL")
 
-    choice = input("\nChoice (1-4): ").strip()
+    choice = input("\nChoice (1-6): ").strip()
     if choice in _SOURCES:
         return _SOURCES[choice][1]
-    if choice == "4":
+    if choice == "6":
         return input("Path or URL: ").strip()
     return "0"
 
@@ -55,9 +72,14 @@ def _choose_source() -> str:
 def main() -> None:
     logger.info("Starting SafeWatch AI …")
 
-    detector = SafetyDetector("yolov8n.pt", confidence_threshold=0.5)
+    # Load config first
     rule_engine = RuleEngine("config/camera_config.json")
-    alert_manager = AlertManager("data/incidents")
+    config = rule_engine.get_config()
+    detection_config = config.get("detection", {})
+    confidence_threshold = detection_config.get("confidence_threshold", 0.5)
+    
+    detector = SafetyDetector("yolov8n.pt", confidence_threshold=confidence_threshold)
+    alert_manager = AlertManager("data/incidents", config=config)
 
     source = _choose_source()
     capture = VideoCapture(source)

@@ -1,55 +1,76 @@
 {
   "cameras": {
     "camera_1": {
-      "source": "data/sample_videos/demo.mp4",
+      "source": "0",
       "name": "Manufacturing Floor - Zone A",
       "restricted_zones": [
         {
-          "name": "Machine Area 1",
-          "points": [[100, 50], [600, 50], [600, 400], [100, 400]],
+          "name": "Restricted Zone 1",
+          "points": [
+            [100, 100],
+            [400, 100],
+            [400, 300],
+            [100, 300]
+          ],
           "type": "no_entry"
         },
         {
-          "name": "Equipment Storage",
-          "points": [[50, 450], [300, 450], [300, 700], [50, 700]],
-          "type": "restricted"
+          "name": "Vehicle Area",
+          "points": [
+            [600, 350],
+            [850, 350],
+            [850, 480],
+            [600, 480]
+          ],
+          "type": "no_entry"
         }
       ],
-      "ppe_required_zones": ["Machine Area 1"],
+      "ppe_required_zones": [],
       "ppe_required": false,
       "fall_detection": true,
       "proximity_detection": true,
-      "proximity_threshold_px": 50,
-      "alert_contacts": ["safety@factory.com"]
+      "proximity_threshold_px": 100,
+      "alert_contacts": [
+        "safety@factory.com"
+      ]
     },
     "camera_2": {
-      "source": "data/sample_videos/demo2.mp4",
+      "source": "safewatch_ai/data/sample_videos/demo.mp4",
       "name": "Warehouse - Loading Dock",
       "restricted_zones": [
         {
-          "name": "Forklift Zone",
-          "points": [[0, 200], [800, 200], [800, 600], [0, 600]],
-          "type": "vehicle_only"
+          "name": "Loading Zone",
+          "points": [
+            [200, 150],
+            [600, 150],
+            [600, 400],
+            [200, 400]
+          ],
+          "type": "no_entry"
         }
       ],
       "ppe_required": true,
-      "ppe_required_zones": ["Forklift Zone"],
+      "ppe_required_zones": [],
       "fall_detection": true,
       "proximity_detection": true,
       "proximity_threshold_px": 80,
-      "alert_contacts": ["supervisor@factory.com"]
+      "alert_contacts": [
+        "supervisor@factory.com"
+      ]
     }
   },
   "alerts": {
     "email_enabled": true,
     "sound_enabled": true,
-    "cooldown_seconds": 30,
+    "cooldown_seconds": 5,
     "default_recipient": "safety@factory.com"
   },
   "detection": {
-    "confidence_threshold": 0.5,
+    "confidence_threshold": 0.25,
     "fps_processing": 5,
-    "fall_detection_frames": 15,
-    "proximity_detection_frames": 10
+    "fall_detection_frames": 8,
+    "proximity_detection_frames": 8,
+    "motionless_threshold_px": 25,
+    "fall_aspect_ratio": 0.7
   }
 }

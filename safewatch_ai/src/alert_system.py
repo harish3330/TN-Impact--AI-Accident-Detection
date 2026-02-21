@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class AlertManager:
     """Save snapshots, play sounds, and email alerts for safety incidents."""
 
-    def __init__(self, incident_dir: str = "data/incidents"):
+    def __init__(self, incident_dir: str = "data/incidents", config: Dict = None):
         self.incident_dir = Path(incident_dir)
         self.incident_dir.mkdir(parents=True, exist_ok=True)
 
@@ -36,11 +36,20 @@ class AlertManager:
         # Cooldown tracking  {alert_key: last_datetime}
         self._last_alert: Dict[str, datetime] = {}
         self.cooldown_seconds = 30
+        
+        # Sound alert setting from config
+        if config and "alerts" in config:
+            self.sound_enabled = config["alerts"].get("sound_enabled", True)
+            self.cooldown_seconds = config["alerts"].get("cooldown_seconds", 30)
+        else:
+            self.sound_enabled = True  # Default to enabled
 
         if self.sender_email and self.sender_password:
             logger.info("Email alerts enabled (%s)", self.sender_email)
         else:
             logger.warning("Email alerts disabled (ALERT_EMAIL / ALERT_PASSWORD missing)")
+            
+        logger.info("Sound alerts %s", "enabled" if self.sound_enabled else "disabled")
 
     # ── public API ──────────────────────────────────────────────────
 
@@ -108,15 +117,32 @@ class AlertManager:
                f"{incident.get('details', '')}")
         (logger.critical if sev == "CRITICAL" else logger.warning)(msg)
 
-    @staticmethod
-    def _beep(incident: Dict) -> None:
+    def _beep(self, incident: Dict) -> None:
+        if not self.sound_enabled:
+            return
+            
         try:
             n = 3 if incident.get("severity") == "CRITICAL" else 1
             freq = 1000 if n == 3 else 800
             dur = 500 if n == 3 else 300
+            
+            # Try multiple sound methods for better compatibility
             for _ in range(n):
-                os.system(f'powershell.exe -c "[console]::beep({freq},{dur})"')
-        except Exception:
+                # Method 1: Try Windows beep command
+                try:
+                    import winsound
+                    winsound.Beep(freq, dur)
+                except ImportError:
+                    # Method 2: PowerShell method (original)
+                    os.system(f'powershell.exe -c "[console]::beep({freq},{dur})"')
+                
+                # Small delay between beeps
+                if n > 1:
+                    import time
+                    time.sleep(0.1)
+                    
+        except Exception as e:
+            logger.warning(f"Sound alert failed: {e}")
             pass
 
     def _send_email(self, incident: Dict, snapshot: Optional[Path],

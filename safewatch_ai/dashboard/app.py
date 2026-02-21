@@ -48,9 +48,9 @@ st.markdown(get_custom_css(), unsafe_allow_html=True)
 # Session state initialisation
 # ---------------------------------------------------------------------------
 _DEFAULTS = {
-    "detector":              lambda: SafetyDetector(),
+    "detector":              lambda: None,  # Will be initialized after config load
     "rule_engine":           lambda: RuleEngine("config/camera_config.json"),
-    "alert_manager":         lambda: AlertManager(),
+    "alert_manager":         lambda: None,  # Will be initialized after config load
     "incidents":             lambda: [],
     "monitoring_active":     lambda: False,
     "total_frames_processed": lambda: 0,
@@ -59,6 +59,17 @@ _DEFAULTS = {
 for _key, _factory in _DEFAULTS.items():
     if _key not in st.session_state:
         st.session_state[_key] = _factory()
+
+# Initialize detector and alert manager with config
+if st.session_state.detector is None:
+    config = st.session_state.rule_engine.get_config()
+    detection_config = config.get("detection", {})
+    confidence_threshold = detection_config.get("confidence_threshold", 0.5)
+    st.session_state.detector = SafetyDetector("yolov8n.pt", confidence_threshold=confidence_threshold)
+
+if st.session_state.alert_manager is None:
+    config = st.session_state.rule_engine.get_config()
+    st.session_state.alert_manager = AlertManager("data/incidents", config=config)
 
 
 # ╔═════════════════════════════════════════════════════════════════════════╗
@@ -348,9 +359,11 @@ def page_overview() -> None:
 # ╚═════════════════════════════════════════════════════════════════════════╝
 
 _SOURCE_MAP = {
-    "Webcam (0)":       "0",
-    "Sample Video 1":   "data/sample_videos/demo.mp4",
-    "Sample Video 2":   "data/sample_videos/demo2.mp4",
+    "Webcam (0)":                    "0",
+    "Sample Video 1 (Demo)":         "data/sample_videos/demo.mp4",
+    "Sample Video 2 (Airgas)":       "data/sample_videos/workplace_safety_1.mp4",
+    "Sample Video 3 (Blocked In)":   "data/sample_videos/workplace_safety_2.mp4",
+    "Sample Video 4 (Behind Curve)": "data/sample_videos/workplace_safety_3.mp4",
 }
 
 _ZONE_ICONS = {
@@ -810,21 +823,69 @@ def page_configuration() -> None:
             st.markdown("#### 📍 Add New Restricted Zone")
 
             src = cam.get("source", "0")
+            
+            # Show current source info
+            st.caption(f"📹 Current source: `{src}`")
+            
             if st.button("📸 Capture Frame", key="cap_frame"):
                 try:
-                    cap = cv2.VideoCapture(src if not src.isdigit() else int(src))
-                    ret, frm = cap.read()
-                    cap.release()
-                    if ret:
-                        st.session_state.reference_frame = frm
-                        fh, fw = frm.shape[:2]
-                        st.session_state.frame_height = fh
-                        st.session_state.frame_width  = fw
-                        st.success(f"Captured {fw}×{fh}")
+                    # Convert source to appropriate type
+                    if src.isdigit():
+                        source = int(src)
+                        st.info(f"🎥 Attempting to open webcam (index {source})...")
                     else:
-                        st.error("Capture failed")
-                except Exception as e:
+                        source = src
+                        abs_path = os.path.abspath(source)
+                        if os.path.exists(abs_path):
+                            source = abs_path
+                            st.info(f"📹 Opening video file: {os.path.basename(source)}")
+                        elif os.path.exists(source):
+                            st.info(f"📹 Opening video file: {os.path.basename(source)}")
+                        else:
+                            st.error(f"❌ File not found: {source}\n\nFull path checked: {abs_path}")
+                            raise FileNotFoundError(f"Video file not found: {source}")
+                    
+                    # Try with DirectShow backend first (better for Windows webcams)
+                    cap = cv2.VideoCapture(source, cv2.CAP_DSHOW) if isinstance(source, int) else cv2.VideoCapture(source)
+                    
+                    if not cap.isOpened():
+                        # Retry without DirectShow
+                        cap.release()
+                        cap = cv2.VideoCapture(source)
+                    
+                    if not cap.isOpened():
+                        st.error(f"❌ Cannot open camera/video source: {src}")
+                        if isinstance(source, int):
+                            st.markdown("""
+                            **Troubleshooting webcam:**
+                            - Close any apps using the camera (Teams, Zoom, Camera app)
+                            - Check Windows Settings → Privacy → Camera → Enable camera access
+                            - Try changing source to "1" or "2" in camera config
+                            - Restart your computer
+                            """)
+                        else:
+                            st.markdown(f"""
+                            **Troubleshooting video file:**
+                            - File path: `{os.path.abspath(source)}`
+                            - File exists: {os.path.exists(source)}
+                            - Try using an absolute path
+                            """)
+                    else:
+                        ret, frm = cap.read()
+                        cap.release()
+                        if ret and frm is not None:
+                            st.session_state.reference_frame = frm
+                            fh, fw = frm.shape[:2]
+                            st.session_state.frame_height = fh
+                            st.session_state.frame_width  = fw
+                            st.success(f"✅ Captured successfully: {fw}×{fh} pixels")
+                        else:
+                            st.error("❌ Failed to read frame. Source opened but no frame available.")
+                except FileNotFoundError as e:
                     st.error(str(e))
+                except Exception as e:
+                    st.error(f"❌ Capture error: {str(e)}")
+                    st.exception(e)
 
             if "reference_frame" in st.session_state:
                 _zone_editor(zones, cam, selected)

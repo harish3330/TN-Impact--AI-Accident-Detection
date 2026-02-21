@@ -45,7 +45,9 @@ class GeometryUtils:
     def get_bbox_aspect_ratio(bbox: Tuple[int, int, int, int]) -> float:
         """Return *height / width* (> 1 → standing, < 0.7 → lying)."""
         x1, y1, x2, y2 = bbox
-        return max(1, y2 - y1) / max(1, x2 - x1)
+        width = max(1, x2 - x1)
+        height = max(1, y2 - y1)
+        return height / width
 
     @staticmethod
     def get_bbox_angle(bbox: Tuple[int, int, int, int]) -> float:

@@ -98,34 +98,46 @@ class RuleEngine:
 
     def _check_fall(self, persons: List, camera_id: str,
                     cfg: Dict) -> List[Dict]:
-        """Person lying down (height/width < 0.7) for >= 15 frames (~3 s)."""
+        """Person lying down (height/width < 0.7) for >= 8 frames (~1.5 s)."""
         if not cfg.get("fall_detection", True):
             return []
+
+        # Get config values
+        global_config = self.config.get("detection", {})
+        aspect_ratio_threshold = global_config.get("fall_aspect_ratio", 0.7)
+        required_frames = global_config.get("fall_detection_frames", 8)
 
         incidents: List[Dict] = []
         for x1, y1, x2, y2, conf, tid in persons:
             ar = GeometryUtils.get_bbox_aspect_ratio((x1, y1, x2, y2))
-            self.state_tracker.update_fall_state(tid, ar < 0.7)
+            # Fall detected when height/width < 0.7 (person is horizontal)
+            is_falling = ar < aspect_ratio_threshold
+            self.state_tracker.update_fall_state(tid, is_falling)
             dur = self.state_tracker.get_fall_duration(tid)
-            if dur >= 15:
+            if dur >= required_frames:
                 incidents.append(self._incident(
                     "FALL_DETECTED", camera_id, conf, (x1, y1, x2, y2), tid,
-                    f"Person lying down for {dur / 5:.1f}s", "CRITICAL",
+                    f"Person lying down for {dur / 5:.1f}s (AR: {ar:.2f})", "CRITICAL",
                     aspect_ratio=ar,
                 ))
         return incidents
 
     def _check_motionless(self, persons: List, camera_id: str,
                           cfg: Dict) -> List[Dict]:
-        """Person stationary (< 15 px movement) for >= 25 frames (~5 s)."""
+        """Person stationary for >= 15 frames (~3 s)."""
         if not cfg.get("fall_detection", True):
             return []
+
+        # Get config values
+        global_config = self.config.get("detection", {})
+        motion_threshold = global_config.get("motionless_threshold_px", 25)
+        required_frames = 20  # ~4 seconds at 5 FPS
 
         incidents: List[Dict] = []
         for x1, y1, x2, y2, conf, tid in persons:
             centroid = GeometryUtils.get_centroid((x1, y1, x2, y2))
-            dur = self.state_tracker.update_motionless_state(tid, centroid, 15)
-            if dur >= 25:
+            dur = self.state_tracker.update_motionless_state(tid, centroid, motion_threshold)
+            if dur >= required_frames:
                 incidents.append(self._incident(
                     "MOTIONLESS_BODY", camera_id, conf, (x1, y1, x2, y2), tid,
                     f"Person motionless for {dur / 5:.1f}s", "CRITICAL",
@@ -155,8 +167,11 @@ class RuleEngine:
 
     def _check_proximity(self, persons: List, vehicles: List,
                          camera_id: str, cfg: Dict) -> List[Dict]:
-        """Person within *threshold* px of a vehicle for >= 10 frames (~2 s)."""
-        threshold = cfg.get("proximity_threshold_px", 50)
+        """Person within threshold px of a vehicle for >= 8 frames (~1.5 s)."""
+        threshold = cfg.get("proximity_threshold_px", 100)
+        global_config = self.config.get("detection", {})
+        required_frames = global_config.get("proximity_detection_frames", 8)
+        
         incidents: List[Dict] = []
         for px1, py1, px2, py2, pconf, pid in persons:
             pc = GeometryUtils.get_centroid((px1, py1, px2, py2))
@@ -164,7 +179,7 @@ class RuleEngine:
                 vbox = (vx1, vy1, vx2, vy2)
                 dist = GeometryUtils.distance_point_to_bbox(pc, vbox)
                 dur = self.state_tracker.update_proximity_state(pid, dist < threshold)
-                if dist < threshold and dur >= 10:
+                if dist < threshold and dur >= required_frames:
                     incidents.append(self._incident(
                         "UNSAFE_PROXIMITY", camera_id, min(pconf, vconf),
                         (px1, py1, px2, py2), pid,

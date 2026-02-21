@@ -5,22 +5,24 @@
       "name": "Manufacturing Floor - Zone A",
       "restricted_zones": [
         {
-          "name": "Restricted Zone 1",
+          "name": "New Restricted Zone",
           "points": [
-            [100, 100],
-            [400, 100],
-            [400, 300],
-            [100, 300]
-          ],
-          "type": "no_entry"
-        },
-        {
-          "name": "Vehicle Area",
-          "points": [
-            [600, 350],
-            [850, 350],
-            [850, 480],
-            [600, 480]
+            [
+              100,
+              100
+            ],
+            [
+              400,
+              100
+            ],
+            [
+              400,
+              300
+            ],
+            [
+              100,
+              300
+            ]
           ],
           "type": "no_entry"
         }
@@ -29,7 +31,7 @@
       "ppe_required": false,
       "fall_detection": true,
       "proximity_detection": true,
-      "proximity_threshold_px": 100,
+      "proximity_threshold_px": 50,
       "alert_contacts": [
         "safety@factory.com"
       ]
@@ -37,18 +39,7 @@
     "camera_2": {
       "source": "safewatch_ai/data/sample_videos/demo.mp4",
       "name": "Warehouse - Loading Dock",
-      "restricted_zones": [
-        {
-          "name": "Loading Zone",
-          "points": [
-            [200, 150],
-            [600, 150],
-            [600, 400],
-            [200, 400]
-          ],
-          "type": "no_entry"
-        }
-      ],
+      "restricted_zones": [],
       "ppe_required": true,
       "ppe_required_zones": [],
       "fall_detection": true,
@@ -62,15 +53,13 @@
   "alerts": {
     "email_enabled": true,
     "sound_enabled": true,
-    "cooldown_seconds": 5,
+    "cooldown_seconds": 30,
     "default_recipient": "safety@factory.com"
   },
   "detection": {
-    "confidence_threshold": 0.25,
+    "confidence_threshold": 0.5,
     "fps_processing": 5,
-    "fall_detection_frames": 8,
-    "proximity_detection_frames": 8,
-    "motionless_threshold_px": 25,
-    "fall_aspect_ratio": 0.7
+    "fall_detection_frames": 15,
+    "proximity_detection_frames": 10
   }
 }

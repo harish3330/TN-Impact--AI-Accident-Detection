@@ -48,9 +48,9 @@ st.markdown(get_custom_css(), unsafe_allow_html=True)
 # Session state initialisation
 # ---------------------------------------------------------------------------
 _DEFAULTS = {
-    "detector":              lambda: None,  # Will be initialized after config load
+    "detector":              lambda: SafetyDetector(),
     "rule_engine":           lambda: RuleEngine("config/camera_config.json"),
-    "alert_manager":         lambda: None,  # Will be initialized after config load
+    "alert_manager":         lambda: AlertManager(),
     "incidents":             lambda: [],
     "monitoring_active":     lambda: False,
     "total_frames_processed": lambda: 0,
@@ -59,17 +59,6 @@ _DEFAULTS = {
 for _key, _factory in _DEFAULTS.items():
     if _key not in st.session_state:
         st.session_state[_key] = _factory()
-
-# Initialize detector and alert manager with config
-if st.session_state.detector is None:
-    config = st.session_state.rule_engine.get_config()
-    detection_config = config.get("detection", {})
-    confidence_threshold = detection_config.get("confidence_threshold", 0.5)
-    st.session_state.detector = SafetyDetector("yolov8n.pt", confidence_threshold=confidence_threshold)
-
-if st.session_state.alert_manager is None:
-    config = st.session_state.rule_engine.get_config()
-    st.session_state.alert_manager = AlertManager("data/incidents", config=config)
 
 
 # ╔═════════════════════════════════════════════════════════════════════════╗
@@ -359,11 +348,9 @@ def page_overview() -> None:
 # ╚═════════════════════════════════════════════════════════════════════════╝
 
 _SOURCE_MAP = {
-    "Webcam (0)":                    "0",
-    "Sample Video 1 (Demo)":         "data/sample_videos/demo.mp4",
-    "Sample Video 2 (Airgas)":       "data/sample_videos/workplace_safety_1.mp4",
-    "Sample Video 3 (Blocked In)":   "data/sample_videos/workplace_safety_2.mp4",
-    "Sample Video 4 (Behind Curve)": "data/sample_videos/workplace_safety_3.mp4",
+    "Webcam (0)":       "0",
+    "Sample Video 1":   "data/sample_videos/demo.mp4",
+    "Sample Video 2":   "data/sample_videos/demo2.mp4",
 }
 
 _ZONE_ICONS = {

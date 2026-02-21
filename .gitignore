@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project specific
+*.pt
+!yolov8n.pt
+data/incidents/*.db
+data/incidents/*.jpg
+data/incidents/*.png
+config/camera_config.json
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Model weights (except default)
+models/*.pt
+!models/yolov8n.pt
+
+# Cache
+.cache/
+.pytest_cache/
+.coverage

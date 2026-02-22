@@ -25,13 +25,7 @@ from src.detector import SafetyDetector
 from src.rule_engine import RuleEngine
 from src.alert_system import AlertManager
 from src.utils.geometry import GeometryUtils
-from dashboard.components.styles import (
-    get_custom_css,
-    render_kpi_card,
-    render_alert_card,
-    render_detection_card,
-    render_feature_box,
-)
+from dashboard.components.enhanced_bootstrap_styles import get_custom_css, render_kpi_card, render_alert_card, render_detection_card, render_feature_box
 
 # ---------------------------------------------------------------------------
 # Streamlit page config (must be first Streamlit call)
@@ -168,7 +162,7 @@ def render_sidebar() -> str:
 
         page = st.radio(
             "Navigation",
-            ["🏠 Overview", "🎥 Live Monitor", "📋 Incident Log",
+            ["🏠 Overview", "🎥 Live Monitor", "📜 Incident Log",
              "📊 Analytics", "⚙️ Configuration"],
             label_visibility="collapsed",
         )
@@ -230,13 +224,13 @@ def page_overview() -> None:
     # KPI cards
     k1, k2, k3, k4 = st.columns(4)
     with k1:
-        st.markdown(render_kpi_card("🚨", stats["total"], "Total Incidents", "kpi-info"),
+        st.markdown(render_kpi_card("🛡️", stats["total"], "Total Incidents", "kpi-info"),
                     unsafe_allow_html=True)
     with k2:
-        st.markdown(render_kpi_card("⚠️", stats["critical"], "Critical Alerts", "kpi-critical"),
+        st.markdown(render_kpi_card("⚡", stats["critical"], "Critical Alerts", "kpi-critical"),
                     unsafe_allow_html=True)
     with k3:
-        st.markdown(render_kpi_card("📋", stats["today"], "Today's Events", "kpi-warning"),
+        st.markdown(render_kpi_card("📊", stats["today"], "Today's Events", "kpi-warning"),
                     unsafe_allow_html=True)
     with k4:
         badge = ('<span class="status-badge status-online">● ACTIVE</span>'
@@ -244,7 +238,7 @@ def page_overview() -> None:
                  else '<span class="status-badge status-offline">● IDLE</span>')
         st.markdown(
             f'<div class="kpi-card kpi-success">'
-            f'<div class="kpi-icon">📡</div>'
+            f'<div class="kpi-icon">🔥</div>'
             f'<div class="kpi-value" style="font-size:1rem;">{badge}</div>'
             f'<div class="kpi-label">System Status</div></div>',
             unsafe_allow_html=True,
@@ -261,11 +255,11 @@ def page_overview() -> None:
         c1, c2 = st.columns(2)
         with c1:
             st.markdown(render_detection_card(
-                "🤸", "Fall Detection",
+                "🚶", "Fall Detection",
                 "Detects workers lying down via bbox aspect-ratio analysis. Triggers after 3 s."),
                 unsafe_allow_html=True)
             st.markdown(render_detection_card(
-                "🚷", "Zone Breach Detection",
+                "⛔", "Zone Breach Detection",
                 "Monitors restricted areas using configurable polygon zones."),
                 unsafe_allow_html=True)
         with c2:
@@ -274,27 +268,27 @@ def page_overview() -> None:
                 "Tracks position over time. Alerts after 5 s of no movement."),
                 unsafe_allow_html=True)
             st.markdown(render_detection_card(
-                "🚛", "Unsafe Proximity",
+                "🚗", "Unsafe Proximity",
                 "Monitors distance between workers and vehicles."),
                 unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
         # Feature highlights
-        st.markdown('<div class="section-header">✨ Key Features</div>',
+        st.markdown('<div class="section-header">⚡ Key Features</div>',
                     unsafe_allow_html=True)
         f1, f2, f3, f4 = st.columns(4)
         with f1:
-            st.markdown(render_feature_box("📹", "Multi-Camera", "RTSP, webcam, and file"),
+            st.markdown(render_feature_box("🎥", "Multi-Camera", "RTSP, webcam, and file"),
                         unsafe_allow_html=True)
         with f2:
-            st.markdown(render_feature_box("📧", "Email Alerts", "Instant with snapshots"),
+            st.markdown(render_feature_box("📬", "Email Alerts", "Instant with snapshots"),
                         unsafe_allow_html=True)
         with f3:
-            st.markdown(render_feature_box("🗺️", "Virtual Zones", "Polygon boundaries"),
+            st.markdown(render_feature_box("📍", "Virtual Zones", "Polygon boundaries"),
                         unsafe_allow_html=True)
         with f4:
-            st.markdown(render_feature_box("📊", "Analytics", "Trends & history"),
+            st.markdown(render_feature_box("📈", "Analytics", "Trends & history"),
                         unsafe_allow_html=True)
 
     with col_right:
@@ -312,11 +306,13 @@ def page_overview() -> None:
         else:
             st.markdown(
                 '<div style="text-align:center; padding:2rem; color:#64748b;">'
-                '<div style="font-size:2rem;">✅</div>'
+                '<div style="font-size:2rem;">🎯</div>'
                 '<div>No incidents recorded yet</div>'
                 '<div style="font-size:0.75rem;">Start monitoring to detect safety events</div></div>',
                 unsafe_allow_html=True,
             )
+
+        st.markdown("---")
 
         # Breakdown progress bars
         if stats["by_type"]:
@@ -324,21 +320,24 @@ def page_overview() -> None:
             st.markdown('<div class="section-header">📈 Incident Breakdown</div>',
                         unsafe_allow_html=True)
             _TYPE_ICONS = {
-                "FALL_DETECTED": "🤸", "ZONE_BREACH": "🚷",
-                "MOTIONLESS_BODY": "🧍", "UNSAFE_PROXIMITY": "🚛", "PPE_VIOLATION": "🦺",
+                "FALL_DETECTED": "🚶", "ZONE_BREACH": "⛔",
+                "MOTIONLESS_BODY": "🧍", "UNSAFE_PROXIMITY": "🚗", "PPE_VIOLATION": "🦺",
             }
             for itype, count in stats["by_type"].items():
                 pct = (count / max(stats["total"], 1)) * 100
-                ic  = _TYPE_ICONS.get(itype, "⚠️")
+                ic  = _TYPE_ICONS.get(itype, "⚡")
                 st.markdown(
                     f'<div style="margin-bottom:0.5rem;">'
-                    f'<div style="display:flex;justify-content:space-between;'
-                    f'font-size:0.8rem;color:#cbd5e1;">'
+                    f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                    f'font-size:0.8rem;color:#1e293b;font-weight:500;">'
                     f'<span>{ic} {itype}</span><span>{count} ({pct:.0f}%)</span></div>'
-                    f'<div style="background:#1e293b;border-radius:4px;height:6px;overflow:hidden;">'
-                    f'<div style="width:{pct}%;height:100%;'
-                    f'background:linear-gradient(90deg,#38bdf8,#818cf8);border-radius:4px;">'
-                    f'</div></div></div>',
+                    f'<div style="display:flex;align-items:center;height:30px;margin-top:0.25rem;">'
+                    f'<div style="display:flex;gap:2px;">'
+                    + ''.join([f'<span style="font-size:1rem;">{ic}</span>' for _ in range(min(int(pct/10), 10))])
+                    + f'</div>'
+                    f'<div style="flex:1;height:4px;background:#e2e8f0;border-radius:2px;margin-left:0.5rem;">'
+                    f'<div style="width:{pct}%;height:100%;background:linear-gradient(90deg,#38bdf8,#818cf8);border-radius:2px;">'
+                    f'</div></div></div></div>',
                     unsafe_allow_html=True,
                 )
 
@@ -354,8 +353,8 @@ _SOURCE_MAP = {
 }
 
 _ZONE_ICONS = {
-    "no_entry": "🚫", "restricted": "⚠️",
-    "ppe_required": "🦺", "vehicle_only": "🚛",
+    "no_entry": "⛔", "restricted": "⚡",
+    "ppe_required": "🦺", "vehicle_only": "🚗",
 }
 
 
@@ -466,7 +465,7 @@ def page_live_monitor() -> None:
         s1, s2 = st.columns([2, 1])
         with s1:
             video_src = st.selectbox(
-                "📹 Source",
+                "🎥 Source",
                 list(_SOURCE_MAP.keys()) + ["Custom Path / RTSP URL"],
                 label_visibility="collapsed",
             )
@@ -505,7 +504,7 @@ def page_live_monitor() -> None:
                 '<div style="background:linear-gradient(145deg,#0f172a,#1e293b);'
                 'border-radius:12px;padding:4rem 2rem;text-align:center;'
                 'border:2px dashed rgba(56,189,248,0.2);">'
-                '<div style="font-size:3rem;margin-bottom:1rem;">📹</div>'
+                '<div style="font-size:3rem;margin-bottom:1rem;">🎥</div>'
                 '<div style="color:#e2e8f0;font-size:1.1rem;font-weight:600;">No Active Feed</div>'
                 '<div style="color:#64748b;font-size:0.85rem;margin-top:0.5rem;">'
                 'Select a video source and press Start</div></div>',
@@ -563,7 +562,7 @@ def page_incident_log() -> None:
     """Searchable incident history with filters and CSV export."""
     st.markdown(
         '<div class="header-banner">'
-        '<h1>📋 Incident <span class="accent">Log</span></h1>'
+        '<h1>📜 Incident <span class="accent">Log</span></h1>'
         '<p>Browse, filter, and export detected safety incidents</p></div>',
         unsafe_allow_html=True,
     )
@@ -581,7 +580,7 @@ def page_incident_log() -> None:
     if df.empty:
         st.markdown(
             '<div style="text-align:center;padding:4rem;color:#64748b;">'
-            '<div style="font-size:3rem;">📋</div>'
+            '<div style="font-size:3rem;">📜</div>'
             '<div style="font-size:1.1rem;margin-top:1rem;">No incidents recorded yet</div>'
             '<div style="font-size:0.85rem;">Start monitoring to populate the log</div></div>',
             unsafe_allow_html=True,
@@ -591,16 +590,19 @@ def page_incident_log() -> None:
     # KPI summary
     k1, k2, k3, k4 = st.columns(4)
     with k1:
-        st.markdown(render_kpi_card("📋", len(df), "Total Records", "kpi-info"),
+        st.markdown(render_kpi_card("📊", len(df), "Total Records", "kpi-info"),
                     unsafe_allow_html=True)
     with k2:
-        st.markdown(render_kpi_card("🚨", len(df[df["severity"] == "CRITICAL"]),
+        critical_count = len(df[df["severity"] == "CRITICAL"]) if "severity" in df.columns else 0
+        st.markdown(render_kpi_card("⚡", critical_count,
                     "Critical", "kpi-critical"), unsafe_allow_html=True)
     with k3:
-        st.markdown(render_kpi_card("⚠️", len(df[df["severity"] == "WARNING"]),
+        warning_count = len(df[df["severity"] == "WARNING"]) if "severity" in df.columns else 0
+        st.markdown(render_kpi_card("🔥", warning_count,
                     "Warnings", "kpi-warning"), unsafe_allow_html=True)
     with k4:
-        st.markdown(render_kpi_card("🏷️", df["incident_type"].nunique(),
+        incident_types = df["incident_type"].nunique() if "incident_type" in df.columns else 0
+        st.markdown(render_kpi_card("🏷️", incident_types,
                     "Incident Types", "kpi-success"), unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -609,18 +611,27 @@ def page_incident_log() -> None:
     f1, f2, f3 = st.columns(3)
     with f1:
         type_filter = st.multiselect("🏷️ Incident Type",
-                                     df["incident_type"].unique().tolist())
+                                     df["incident_type"].unique().tolist() if "incident_type" in df.columns else [])
     with f2:
         sev_filter = st.multiselect("⚡ Severity",
-                                    df["severity"].unique().tolist())
+                                    df["severity"].unique().tolist() if "severity" in df.columns else [])
     with f3:
-        st.slider("📅 Days Back", 1, 30, 7)
+        days_back = st.slider("📅 Days Back", 1, 30, 7)
 
     filtered = df.copy()
-    if type_filter:
+    if type_filter and "incident_type" in filtered.columns:
         filtered = filtered[filtered["incident_type"].isin(type_filter)]
-    if sev_filter:
+    if sev_filter and "severity" in filtered.columns:
         filtered = filtered[filtered["severity"].isin(sev_filter)]
+    
+    # Filter by date if timestamp column exists
+    if "timestamp" in filtered.columns:
+        try:
+            filtered["timestamp"] = pd.to_datetime(filtered["timestamp"], errors="coerce")
+            cutoff_date = pd.Timestamp.now() - pd.Timedelta(days=days_back)
+            filtered = filtered[filtered["timestamp"] >= cutoff_date]
+        except Exception:
+            pass  # If date filtering fails, continue without it
 
     st.dataframe(
         filtered, use_container_width=True, height=400,
@@ -686,7 +697,7 @@ def page_analytics() -> None:
                     unsafe_allow_html=True)
     with k4:
         n_cams = len(st.session_state.rule_engine.get_config().get("cameras", {}))
-        st.markdown(render_kpi_card("📹", n_cams, "Cameras", "kpi-info"),
+        st.markdown(render_kpi_card("🎥", n_cams, "Cameras", "kpi-info"),
                     unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -720,7 +731,7 @@ def page_analytics() -> None:
     # Row 2: camera & hourly
     c3, c4 = st.columns(2)
     with c3:
-        st.markdown('<div class="section-header">📹 By Camera</div>',
+        st.markdown('<div class="section-header">🎥 By Camera</div>',
                     unsafe_allow_html=True)
         st.bar_chart(df["camera_id"].value_counts(), color="#22c55e")
     with c4:
@@ -748,7 +759,7 @@ def page_configuration() -> None:
     )
 
     tab_cam, tab_zone, tab_alert, tab_det = st.tabs(
-        ["📹 Cameras", "🗺️ Zones", "🔔 Alerts", "🎯 Detection"],
+        ["🎥 Cameras", "🗺️ Zones", "🔔 Alerts", "🎯 Detection"],
     )
 
     config   = st.session_state.rule_engine.get_config()
@@ -812,7 +823,7 @@ def page_configuration() -> None:
             src = cam.get("source", "0")
             
             # Show current source info
-            st.caption(f"📹 Current source: `{src}`")
+            st.caption(f"🎥 Current source: `{src}`")
             
             if st.button("📸 Capture Frame", key="cap_frame"):
                 try:
@@ -1031,7 +1042,7 @@ def _zone_editor(zones: list, cam: dict, selected_camera: str) -> None:
 _PAGES = {
     "🏠 Overview":      page_overview,
     "🎥 Live Monitor":  page_live_monitor,
-    "📋 Incident Log":  page_incident_log,
+    "📜 Incident Log":  page_incident_log,
     "📊 Analytics":     page_analytics,
     "⚙️ Configuration": page_configuration,
 }

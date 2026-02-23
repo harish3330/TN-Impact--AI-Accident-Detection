@@ -148,7 +148,7 @@ def render_sidebar() -> str:
     with st.sidebar:
         # Branding
         st.markdown(
-            '<div style="text-align:center; padding:0.5rem 0 1rem 0;">'
+            '<div style="text-align:center; padding:0.5rem 0 0.2rem 0;">'
             '<div style="font-size:2.5rem;">🛡️</div>'
             '<div style="font-family:\'Inter\',sans-serif; font-weight:800;'
             ' font-size:1.3rem; color:#38bdf8; letter-spacing:-0.5px;">'
@@ -160,11 +160,16 @@ def render_sidebar() -> str:
 
         st.markdown("---")
 
+
+        st.markdown(
+            '<div style="text-align:center; font-size:1.1rem; font-weight:600; color:#334155; margin-bottom:0.1rem; margin-top:0rem; line-height:1; padding:0;">Navigation</div>',
+            unsafe_allow_html=True
+        )
         page = st.radio(
-            "Navigation",
-            ["🏠 Overview", "🎥 Live Monitor", "📜 Incident Log",
-             "📊 Analytics", "⚙️ Configuration"],
-            label_visibility="collapsed",
+            label="",
+            options=["🏠 Overview", "🎥 Live Monitor", "📜 Incident Log", "📊 Analytics", "⚙️ Configuration"],
+            label_visibility="hidden",
+            index=0,
         )
 
         st.markdown("---")

@@ -76,7 +76,10 @@ def get_custom_css() -> str:
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08) !important;
         position: relative;
         overflow: hidden;
-        padding: 1rem !important;
+        padding: 0.5rem 0.5rem 0.5rem 0.5rem !important;
+        width: 320px !important;
+        min-width: 280px !important;
+        max-width: 340px !important;
     }
     
     [data-testid="stSidebar"]::before {
@@ -99,33 +102,59 @@ def get_custom_css() -> str:
     [data-testid="stSidebar"] .stRadio label {
         color: #1e293b !important;
         font-weight: 600;
-        font-size: 0.95rem;
-        padding: 1rem 1.25rem;
-        margin: 0.5rem 0;
-        border-radius: 0.875rem;
-        transition: all 0.3s ease;
+        font-size: 0.9rem;
+        padding: 0.8rem 1.2rem;
+        margin: 0.25rem 0;
+        border-radius: 1.2rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        background: rgba(255, 255, 255, 0.8);
-        border: 1px solid rgba(79, 70, 229, 0.1);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        gap: 0.7rem;
+        background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%);
+        border: 2px solid rgba(79, 70, 229, 0.12);
+        box-shadow: 0 4px 16px rgba(79, 70, 229, 0.08);
         cursor: pointer;
+        font-family: 'Poppins', sans-serif;
+        letter-spacing: 0.02em;
+        position: relative;
+        overflow: hidden;
+        width: 100%;
+        min-height: 3.5rem;
+        justify-content: flex-start;
     }
     
     [data-testid="stSidebar"] .stRadio label:hover {
-        background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(79, 70, 229, 0.05));
+        background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
         color: var(--bs-primary) !important;
-        transform: translateX(0.25rem);
-        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.2);
-        border-color: rgba(79, 70, 229, 0.2);
+        transform: scale(1.02) translateY(-2px);
+        box-shadow: 0 12px 28px rgba(79, 70, 229, 0.2);
+        border-color: var(--bs-primary-light);
+    }
+    
+    [data-testid="stSidebar"] .stRadio label:active {
+        transform: scale(0.98) translateY(0px);
+        box-shadow: 0 4px 16px rgba(79, 70, 229, 0.15);
     }
     
     [data-testid="stSidebar"] .stRadio input:checked + label {
-        background: linear-gradient(135deg, var(--bs-primary), #7c3aed) !important;
-        color: white !important;
+        background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%) !important;
+        color: #fff !important;
         border-color: var(--bs-primary);
-        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+        box-shadow: 0 12px 32px rgba(79, 70, 229, 0.25);
+        transform: scale(1.05);
+    }
+    
+    [data-testid="stSidebar"] .stRadio input:checked + label::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+        opacity: 0.15;
+        z-index: 0;
+        border-radius: 1.2rem;
     }
     
     [data-testid="stSidebar"] .stRadio [data-baseweb="radio"] {
@@ -148,9 +177,9 @@ def get_custom_css() -> str:
     }
     
     [data-testid="stSidebar"] > div:first-child > div > div > div > div {
-        font-weight: 700 !important;
+        font-weight: 600 !important;
         color: var(--bs-primary) !important;
-        font-size: 1.1rem !important;
+        font-size: 0.85rem !important;
         text-align: center;
         letter-spacing: 0.5px;
     }
@@ -167,6 +196,58 @@ def get_custom_css() -> str:
     /* Sidebar Content Enhancement */
     [data-testid="stSidebar"] .element-container {
         margin: 0.5rem 0;
+    }
+    
+    /* ===== FULL SCREEN WHEN SIDEBAR COLLAPSED ===== */
+    /* When sidebar is collapsed, expand main content to full width */
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        width: 0 !important;
+        min-width: 0 !important;
+        margin-left: 0 !important;
+        display: none;
+    }
+    
+    /* Adjust main content area when sidebar is collapsed */
+    [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] .main,
+    [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stAppViewContainer"] .main .block-container {
+        margin-left: 0 !important;
+        padding-left: 2rem !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    
+    /* Alternative selector for collapsed sidebar */
+    .stApp[data-test-sidebar-collapsed="true"] [data-testid="stAppViewContainer"] .main,
+    .stApp[data-test-sidebar-collapsed="true"] [data-testid="stAppViewContainer"] .main .block-container {
+        margin-left: 0 !important;
+        padding-left: 2rem !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    
+    /* Streamlit v1.30+ collapsed sidebar handling */
+    section[data-testid="stSidebar"][aria-hidden="true"] {
+        width: 0 !important;
+        min-width: 0 !important;
+        display: none !important;
+    }
+    
+    /* Main content expansion when no visible sidebar */
+    .appview-container:has([data-testid="stSidebar"][aria-hidden="true"]) .main .block-container,
+    [data-testid="stAppViewContainer"]:has([data-testid="stSidebar"][aria-hidden="true"]) .main .block-container {
+        max-width: 100% !important;
+        padding-left: 3rem !important;
+        padding-right: 3rem !important;
+    }
+    
+    /* Remove left margin when sidebar is hidden */
+    .stApp:has([data-testid="stSidebar"][aria-hidden="true"]) .main {
+        margin-left: 0 !important;
+    }
+    
+    /* Smooth transition for content expansion */
+    .main, .main .block-container {
+        transition: margin-left 0.3s ease-in-out, max-width 0.3s ease-in-out, padding 0.3s ease-in-out !important;
     }
     
     /* Active State Enhancement */
@@ -206,10 +287,10 @@ def get_custom_css() -> str:
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(20px);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 1.5rem;
-        padding: 3rem;
-        margin-bottom: 2rem;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
         position: relative;
         overflow: hidden;
         transform: perspective(1000px) rotateX(2deg);
@@ -249,18 +330,18 @@ def get_custom_css() -> str:
     }
     
     .header-banner h1 {
-        font-size: 3rem;
-        font-weight: 800;
-        margin: 0 0 1rem 0;
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0 0 0.5rem 0;
         color: #1e293b;
         font-family: 'Poppins', sans-serif;
-        text-shadow: 0 4px 20px rgba(79, 70, 229, 0.3);
+        text-shadow: 0 2px 10px rgba(79, 70, 229, 0.2);
         position: relative;
         z-index: 1;
     }
     
     .header-banner p {
-        font-size: 1.25rem;
+        font-size: 1rem;
         color: #64748b;
         margin: 0;
         font-weight: 400;
@@ -278,12 +359,12 @@ def get_custom_css() -> str:
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(20px);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 1.5rem;
-        padding: 2rem;
+        border-radius: 1rem;
+        padding: 1rem;
         text-align: center;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        height: 220px;
+        height: 120px;
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -315,10 +396,10 @@ def get_custom_css() -> str:
     }
     
     .kpi-icon {
-        font-size: 3.5rem;
-        margin-bottom: 1.5rem;
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
         animation: float 3s ease-in-out infinite;
-        filter: drop-shadow(0 4px 20px rgba(79, 70, 229, 0.3));
+        filter: drop-shadow(0 2px 10px rgba(79, 70, 229, 0.2));
     }
     
     @keyframes float {
@@ -327,19 +408,19 @@ def get_custom_css() -> str:
     }
     
     .kpi-value {
-        font-size: 3.5rem;
-        font-weight: 800;
-        margin: 0.5rem 0;
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0.25rem 0;
         color: #1e293b;
         line-height: 1;
-        text-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        text-shadow: 0 1px 5px rgba(0,0,0,0.08);
     }
     
     .kpi-label {
-        font-size: 0.9rem;
+        font-size: 0.7rem;
         color: #64748b;
         font-weight: 600;
-        margin-top: 1rem;
+        margin-top: 0.5rem;
         text-transform: uppercase;
         letter-spacing: 0.1em;
     }
@@ -368,15 +449,15 @@ def get_custom_css() -> str:
     
     /* ===== DYNAMIC SECTION HEADERS ===== */
     .section-header {
-        font-size: 1.75rem;
+        font-size: 1.1rem;
         font-weight: 700;
         color: #1e293b;
-        margin-bottom: 2rem;
-        padding-bottom: 1rem;
-        border-bottom: 2px solid rgba(79, 70, 229, 0.2);
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid rgba(79, 70, 229, 0.15);
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.5rem;
         position: relative;
     }
     
@@ -401,11 +482,11 @@ def get_custom_css() -> str:
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(20px);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 1.25rem;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
+        border-radius: 0.75rem;
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        height: 220px;
+        height: 100px;
         position: relative;
         overflow: hidden;
         transform: perspective(1000px) rotateX(2deg);
@@ -441,7 +522,7 @@ def get_custom_css() -> str:
     }
     
     .detection-card .det-icon {
-        font-size: 2.25rem;
+        font-size: 1.2rem;
         animation: pulse 2s ease-in-out infinite;
     }
     
@@ -453,14 +534,14 @@ def get_custom_css() -> str:
     .detection-card .det-title {
         font-weight: 700;
         color: #1e293b;
-        font-size: 1.25rem;
+        font-size: 0.9rem;
         margin: 0;
     }
     
     .detection-card .det-desc {
-        font-size: 0.95rem;
+        font-size: 0.7rem;
         color: #64748b;
-        line-height: 1.7;
+        line-height: 1.3;
         margin: 0;
     }
     
@@ -469,10 +550,10 @@ def get_custom_css() -> str:
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(20px);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 1rem;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        border-left: 4px solid var(--bs-primary);
+        border-radius: 0.75rem;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        border-left: 3px solid var(--bs-primary);
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         position: relative;
         overflow: hidden;
@@ -519,21 +600,21 @@ def get_custom_css() -> str:
     
     .alert-card .alert-title {
         font-weight: 700;
-        font-size: 1.1rem;
+        font-size: 0.8rem;
         color: #1e293b;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.3rem;
     }
     
     .alert-card .alert-detail {
-        font-size: 0.9rem;
+        font-size: 0.7rem;
         color: #64748b;
-        line-height: 1.6;
+        line-height: 1.2;
     }
     
     .alert-card .alert-time {
-        font-size: 0.8rem;
+        font-size: 0.6rem;
         color: #94a3b8;
-        margin-top: 0.75rem;
+        margin-top: 0.2rem;
         font-weight: 500;
     }
     
@@ -591,11 +672,11 @@ def get_custom_css() -> str:
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(20px);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 1rem;
-        padding: 1.5rem;
+        border-radius: 0.75rem;
+        padding: 0.75rem;
         text-align: center;
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        height: 220px;
+        height: 100px;
         position: relative;
         overflow: hidden;
         transform: perspective(1000px) rotateX(2deg);
@@ -623,8 +704,8 @@ def get_custom_css() -> str:
     }
     
     .feature-box .feat-icon {
-        font-size: 2.75rem;
-        margin-bottom: 1.25rem;
+        font-size: 1.2rem;
+        margin-bottom: 0.3rem;
         animation: float 3s ease-in-out infinite;
     }
     
@@ -636,14 +717,14 @@ def get_custom_css() -> str:
     .feature-box .feat-title {
         font-weight: 700;
         color: #1e293b;
-        font-size: 1.1rem;
-        margin-bottom: 0.75rem;
+        font-size: 0.8rem;
+        margin-bottom: 0.2rem;
     }
     
     .feature-box .feat-desc {
-        font-size: 0.85rem;
+        font-size: 0.6rem;
         color: #64748b;
-        line-height: 1.6;
+        line-height: 1.1;
     }
     
     /* ===== SPECTACULAR BUTTONS ===== */

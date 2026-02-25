@@ -7,8 +7,11 @@ Provides five pages: Overview, Live Monitor, Incident Log, Analytics, Configurat
 
 import cv2
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
 from pathlib import Path
 from datetime import datetime
 import sqlite3
@@ -25,24 +28,56 @@ from src.detector import SafetyDetector
 from src.rule_engine import RuleEngine
 from src.alert_system import AlertManager
 from src.utils.geometry import GeometryUtils
-from dashboard.components.enhanced_bootstrap_styles import get_custom_css, render_kpi_card, render_alert_card, render_detection_card, render_feature_box
+from dashboard.components.enhanced_bootstrap_styles import (
+    get_custom_css, render_kpi_card, render_alert_card,
+    render_detection_card, render_feature_box,
+    get_particle_canvas_html, get_typing_effect_html,
+    get_live_clock_html, get_ai_status_badge_html,
+    get_plotly_theme_template, get_theme_colors,
+)
 
 # ---------------------------------------------------------------------------
 # Streamlit page config (must be first Streamlit call)
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="SafeWatch AI — Industrial Safety Monitor",
+    page_title="SafeWatch AI — Control Center",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-st.markdown(get_custom_css(), unsafe_allow_html=True)
+
+# Theme — persisted in session state
+if "theme" not in st.session_state:
+    st.session_state.theme = "dark"   # default theme
+
+_THEME = st.session_state.theme
+st.markdown(get_custom_css(theme=_THEME), unsafe_allow_html=True)
+
+# Inject JS to toggle the dark-theme class on .stApp (st.markdown strips <script>)
+_theme_js = f"""
+<script>
+(function(){{
+    const app = window.parent.document.querySelector('.stApp');
+    if (app) {{
+        if ('{_THEME}' === 'dark') {{
+            app.classList.add('dark-theme');
+        }} else {{
+            app.classList.remove('dark-theme');
+        }}
+    }}
+}})();
+</script>
+"""
+components.html(_theme_js, height=0)
+
+# Inject particle background
+components.html(get_particle_canvas_html(theme=_THEME), height=0)
 
 # ---------------------------------------------------------------------------
 # Session state initialisation
 # ---------------------------------------------------------------------------
 _DEFAULTS = {
-    "detector":              lambda: SafetyDetector(),
+    "detector":              lambda: SafetyDetector(confidence_threshold=0.35),
     "rule_engine":           lambda: RuleEngine("config/camera_config.json"),
     "alert_manager":         lambda: AlertManager(),
     "incidents":             lambda: [],
@@ -53,6 +88,10 @@ _DEFAULTS = {
 for _key, _factory in _DEFAULTS.items():
     if _key not in st.session_state:
         st.session_state[_key] = _factory()
+
+# Convenience: re-read theme after session-state init
+_THEME = st.session_state.theme
+_TC = get_theme_colors(_THEME)
 
 
 # ╔═════════════════════════════════════════════════════════════════════════╗
@@ -144,29 +183,41 @@ def get_incident_stats() -> dict:
 # ╚═════════════════════════════════════════════════════════════════════════╝
 
 def render_sidebar() -> str:
-    """Draw the sidebar and return the selected page name."""
+    """Draw the futuristic sidebar and return the selected page name."""
     with st.sidebar:
+        # ── Theme toggle ────────────────────────────────────────────
+        is_light = st.toggle(
+            "☀️ Light Mode",
+            value=(st.session_state.theme == "light"),
+            key="theme_toggle",
+        )
+        new_theme = "light" if is_light else "dark"
+        if new_theme != st.session_state.theme:
+            st.session_state.theme = new_theme
+            st.rerun()
+
         # Branding
         st.markdown(
             '<div style="text-align:center; padding:0.5rem 0 0.2rem 0;">'
             '<div style="font-size:2.5rem;">🛡️</div>'
-            '<div style="font-family:\'Inter\',sans-serif; font-weight:800;'
-            ' font-size:1.3rem; color:#38bdf8; letter-spacing:-0.5px;">'
+            f'<div style="font-family:\'{_TC["font_display"]}\',sans-serif; font-weight:800;'
+            f' font-size:1.2rem; color:{_TC["primary"]}; letter-spacing:1px;">'
             'SafeWatch AI</div>'
-            '<div style="font-size:0.7rem; color:#64748b; margin-top:0.2rem;">'
-            'Industrial Safety Monitor v2.0</div></div>',
+            f'<div style="font-family:\'{_TC["font_body"]}\',sans-serif;font-size:0.7rem; color:{_TC["muted"]}; margin-top:0.2rem;'
+            ' letter-spacing:0.5px;">Control Center v2.0</div></div>',
             unsafe_allow_html=True,
         )
 
         st.markdown("---")
 
-
         st.markdown(
-            '<div style="text-align:center; font-size:1.1rem; font-weight:600; color:#334155; margin-bottom:0.1rem; margin-top:0rem; line-height:1; padding:0;">Navigation</div>',
+            f'<div style="text-align:center; font-family:\'{_TC["font_display"]}\',sans-serif;'
+            f' font-size:0.75rem; font-weight:700; color:{_TC["primary"]}; margin-bottom:0.3rem;'
+            ' letter-spacing:1px;">Navigation</div>',
             unsafe_allow_html=True
         )
         page = st.radio(
-            label="",
+            label="Page Selection",
             options=["🏠 Overview", "🎥 Live Monitor", "📜 Incident Log", "📊 Analytics", "⚙️ Configuration"],
             label_visibility="hidden",
             index=0,
@@ -178,7 +229,7 @@ def render_sidebar() -> str:
         mon_colour = "green" if st.session_state.monitoring_active else "yellow"
         mon_label  = "Monitoring Active" if st.session_state.monitoring_active else "Monitoring Idle"
         st.markdown(
-            '<div class="section-header">System Health</div>'
+            '<div class="section-header">SYSTEM HEALTH</div>'
             '<div class="health-indicator"><span class="health-dot green"></span> AI Engine Online</div>'
             f'<div class="health-indicator"><span class="health-dot {mon_colour}"></span> {mon_label}</div>'
             '<div class="health-indicator"><span class="health-dot green"></span> Alert System Ready</div>'
@@ -193,7 +244,7 @@ def render_sidebar() -> str:
         h, rem = divmod(int(uptime.total_seconds()), 3600)
         m, s   = divmod(rem, 60)
         st.markdown(
-            f'<div style="font-size:0.75rem; color:#64748b;">'
+            f'<div style="font-family:\'{_TC["font_body"]}\',sans-serif;font-size:0.78rem; color:{_TC["muted"]};">' 
             f'<div>📅 {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>'
             f'<div>⏱️ Uptime: {h:02d}:{m:02d}:{s:02d}</div>'
             f'<div>🖥️ Frames: {st.session_state.total_frames_processed}</div></div>',
@@ -202,8 +253,9 @@ def render_sidebar() -> str:
 
         st.markdown("---")
         st.markdown(
-            '<div style="text-align:center; font-size:0.65rem; color:#475569;">'
-            'Built for TN-IMPACT Hackathon<br>Powered by YOLOv8 + OpenCV</div>',
+            f'<div style="text-align:center; font-size:0.65rem; color:{_TC["text2"]};">' 
+            'Built for TN-IMPACT Hackathon<br>'
+            f'<span style="color:{_TC["primary"]};">Powered by YOLOv8 + OpenCV</span></div>',
             unsafe_allow_html=True,
         )
 
@@ -216,13 +268,22 @@ def render_sidebar() -> str:
 
 def page_overview() -> None:
     """Dashboard home — KPIs, detection capabilities, recent alerts."""
+    # Typing hero + clock
+    components.html(get_typing_effect_html(
+        "Real-time AI-powered Industrial Accident Detection & Prevention",
+        theme=_THEME), height=50)
+    components.html(get_live_clock_html(theme=_THEME), height=36)
+
     st.markdown(
         '<div class="header-banner">'
-        '<h1>🛡️ SafeWatch AI <span class="accent">Dashboard</span></h1>'
-        '<p>Real-time AI-powered industrial safety monitoring — '
+        '<h1>🛡️ SafeWatch AI <span class="accent">Control Center</span></h1>'
+        '<p>AI-powered industrial safety monitoring — '
         'Protecting workers, preventing accidents</p></div>',
         unsafe_allow_html=True,
     )
+
+    # AI status badge
+    components.html(get_ai_status_badge_html(theme=_THEME), height=32)
 
     stats = get_incident_stats()
 
@@ -255,32 +316,40 @@ def page_overview() -> None:
 
     with col_left:
         # Detection capability cards
-        st.markdown('<div class="section-header">🎯 Detection Capabilities</div>',
+        st.markdown('<div class="section-header">🎯 DETECTION CAPABILITIES</div>',
                     unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         with c1:
             st.markdown(render_detection_card(
                 "🚶", "Fall Detection",
-                "Detects workers lying down via bbox aspect-ratio analysis. Triggers after 3 s."),
+                "Detects workers lying down via bbox aspect-ratio analysis."),
                 unsafe_allow_html=True)
             st.markdown(render_detection_card(
                 "⛔", "Zone Breach Detection",
                 "Monitors restricted areas using configurable polygon zones."),
                 unsafe_allow_html=True)
+            st.markdown(render_detection_card(
+                "💥", "Person-Vehicle Impact",
+                "Detects person-vehicle bbox overlap indicating collision."),
+                unsafe_allow_html=True)
         with c2:
             st.markdown(render_detection_card(
                 "🧍", "Motionless Body Detection",
-                "Tracks position over time. Alerts after 5 s of no movement."),
+                "Tracks position over time. Alerts after sustained no movement."),
                 unsafe_allow_html=True)
             st.markdown(render_detection_card(
                 "🚗", "Unsafe Proximity",
                 "Monitors distance between workers and vehicles."),
                 unsafe_allow_html=True)
+            st.markdown(render_detection_card(
+                "🚧", "Vehicle Collision",
+                "Detects overlapping vehicle bounding boxes indicating crash."),
+                unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
         # Feature highlights
-        st.markdown('<div class="section-header">⚡ Key Features</div>',
+        st.markdown('<div class="section-header">⚡ KEY FEATURES</div>',
                     unsafe_allow_html=True)
         f1, f2, f3, f4 = st.columns(4)
         with f1:
@@ -298,7 +367,7 @@ def page_overview() -> None:
 
     with col_right:
         # Recent alerts feed
-        st.markdown('<div class="section-header">🔔 Recent Alerts</div>',
+        st.markdown('<div class="section-header">🔔 RECENT ALERTS</div>',
                     unsafe_allow_html=True)
         if not stats["recent"].empty:
             for _, row in stats["recent"].head(6).iterrows():
@@ -310,10 +379,10 @@ def page_overview() -> None:
                 ), unsafe_allow_html=True)
         else:
             st.markdown(
-                '<div style="text-align:center; padding:2rem; color:#64748b;">'
-                '<div style="font-size:2rem;">🎯</div>'
-                '<div>No incidents recorded yet</div>'
-                '<div style="font-size:0.75rem;">Start monitoring to detect safety events</div></div>',
+                f'<div style="text-align:center; padding:2rem; color:{_TC["muted"]};">' 
+                f'<div style="font-size:2rem;">🎯</div>'
+                f'<div style="color:{_TC["text2"]};">No incidents recorded yet</div>'
+                f'<div style="font-size:0.75rem;color:{_TC["muted"]};">Start monitoring to detect safety events</div></div>',
                 unsafe_allow_html=True,
             )
 
@@ -322,11 +391,13 @@ def page_overview() -> None:
         # Breakdown progress bars
         if stats["by_type"]:
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown('<div class="section-header">📈 Incident Breakdown</div>',
+            st.markdown('<div class="section-header">📈 INCIDENT BREAKDOWN</div>',
                         unsafe_allow_html=True)
             _TYPE_ICONS = {
                 "FALL_DETECTED": "🚶", "ZONE_BREACH": "⛔",
                 "MOTIONLESS_BODY": "🧍", "UNSAFE_PROXIMITY": "🚗", "PPE_VIOLATION": "🦺",
+                "SUDDEN_FALL": "⚠️", "PERSON_VEHICLE_IMPACT": "💥",
+                "VEHICLE_COLLISION": "🚧",
             }
             for itype, count in stats["by_type"].items():
                 pct = (count / max(stats["total"], 1)) * 100
@@ -334,14 +405,16 @@ def page_overview() -> None:
                 st.markdown(
                     f'<div style="margin-bottom:0.5rem;">'
                     f'<div style="display:flex;justify-content:space-between;align-items:center;'
-                    f'font-size:0.8rem;color:#1e293b;font-weight:500;">'
-                    f'<span>{ic} {itype}</span><span>{count} ({pct:.0f}%)</span></div>'
+                    f'font-size:0.8rem;color:{_TC["text"]};font-weight:500;'
+                    f'font-family:\'{_TC["font_body"]}\',sans-serif;">'
+                    f'<span>{ic} {itype}</span><span style="color:{_TC["primary"]};">{count} ({pct:.0f}%)</span></div>'
                     f'<div style="display:flex;align-items:center;height:30px;margin-top:0.25rem;">'
                     f'<div style="display:flex;gap:2px;">'
                     + ''.join([f'<span style="font-size:1rem;">{ic}</span>' for _ in range(min(int(pct/10), 10))])
                     + f'</div>'
-                    f'<div style="flex:1;height:4px;background:#e2e8f0;border-radius:2px;margin-left:0.5rem;">'
-                    f'<div style="width:{pct}%;height:100%;background:linear-gradient(90deg,#38bdf8,#818cf8);border-radius:2px;">'
+                    f'<div style="flex:1;height:4px;background:{_TC["bar_bg"]};border-radius:2px;margin-left:0.5rem;">'
+                    f'<div style="width:{pct}%;height:100%;background:{_TC["bar_grad"]};'
+                    f'border-radius:2px;">'
                     f'</div></div></div></div>',
                     unsafe_allow_html=True,
                 )
@@ -352,9 +425,14 @@ def page_overview() -> None:
 # ╚═════════════════════════════════════════════════════════════════════════╝
 
 _SOURCE_MAP = {
-    "Webcam (0)":       "0",
-    "Sample Video 1":   "data/sample_videos/demo.mp4",
-    "Sample Video 2":   "data/sample_videos/demo2.mp4",
+    "Webcam (0)":                     "0",
+    "🚶 Fall Detection Test":         "data/sample_videos/test_fall_detection.mp4",
+    "🚗 Proximity Test (Person+Car)": "data/sample_videos/test_proximity.mp4",
+    "🧍 Motionless Body Test":        "data/sample_videos/test_motionless.mp4",
+    "⛔ Zone Breach Test":            "data/sample_videos/test_zone_breach.mp4",
+    "📹 General Surveillance":        "data/sample_videos/test_general_surveillance.mp4",
+    "Sample Video 1":                 "data/sample_videos/demo.mp4",
+    "Sample Video 2":                 "data/sample_videos/demo2.mp4",
 }
 
 _ZONE_ICONS = {
@@ -505,14 +583,22 @@ def page_live_monitor() -> None:
         if st.session_state.monitoring_active:
             _monitoring_loop(source, video_ph, stats_ph)
         else:
+            _bg = 'rgba(255,255,255,0.7)' if _THEME == 'light' else 'rgba(15,23,42,0.85)'
+            _bdr = 'rgba(37,99,235,0.10)' if _THEME == 'light' else 'rgba(0,245,255,0.15)'
+            _shd = 'rgba(0,0,0,0.06)' if _THEME == 'light' else 'rgba(0,245,255,0.08)'
             st.markdown(
-                '<div style="background:linear-gradient(145deg,#0f172a,#1e293b);'
-                'border-radius:12px;padding:4rem 2rem;text-align:center;'
-                'border:2px dashed rgba(56,189,248,0.2);">'
+                f'<div class="scan-container" style="background:{_bg};'
+                f'border-radius:12px;padding:4rem 2rem;text-align:center;'
+                f'border:1px solid {_bdr};'
+                f'backdrop-filter:blur(16px);position:relative;overflow:hidden;'
+                f'box-shadow:0 4px 24px {_shd};">' 
+                '<div class="scan-line"></div>'
                 '<div style="font-size:3rem;margin-bottom:1rem;">🎥</div>'
-                '<div style="color:#e2e8f0;font-size:1.1rem;font-weight:600;">No Active Feed</div>'
-                '<div style="color:#64748b;font-size:0.85rem;margin-top:0.5rem;">'
-                'Select a video source and press Start</div></div>',
+                f'<div style="color:{_TC["text"]};font-size:1.1rem;font-weight:600;'
+                f'font-family:\'{_TC["font_display"]}\',sans-serif;">No Active Feed</div>'
+                f'<div style="color:{_TC["muted"]};font-size:0.85rem;margin-top:0.5rem;'
+                f'font-family:\'{_TC["font_body"]}\',sans-serif;">'
+                'Select a video source and press ▶️ Start to begin AI analysis</div></div>',
                 unsafe_allow_html=True,
             )
 
@@ -530,9 +616,9 @@ def page_live_monitor() -> None:
                 ), unsafe_allow_html=True)
         else:
             st.markdown(
-                '<div style="text-align:center;padding:2rem;color:#64748b;">'
-                '<div style="font-size:2rem;">🔇</div>'
-                '<div style="font-size:0.85rem;">No alerts yet</div></div>',
+                f'<div style="text-align:center;padding:2rem;color:{_TC["muted"]};">' 
+                f'<div style="font-size:2rem;">🔇</div>'
+                f'<div style="font-size:0.85rem;">No alerts yet</div></div>',
                 unsafe_allow_html=True,
             )
 
@@ -546,12 +632,17 @@ def page_live_monitor() -> None:
         if zones:
             for z in zones:
                 zt = z.get("type", "restricted")
+                _zone_bg = 'rgba(220,38,38,0.04)' if _THEME == 'light' else 'rgba(220,38,38,0.12)'
+                _zone_bdr = 'rgba(220,38,38,0.10)' if _THEME == 'light' else 'rgba(220,38,38,0.25)'
                 st.markdown(
-                    f'<div style="background:rgba(239,68,68,0.08);padding:0.5rem 0.8rem;'
-                    f'border-radius:8px;margin-bottom:0.4rem;border-left:3px solid #ef4444;">'
-                    f'<div style="font-size:0.8rem;font-weight:600;color:#fca5a5;">'
+                    f'<div style="background:{_zone_bg};padding:0.5rem 0.8rem;'
+                    f'border-radius:8px;margin-bottom:0.4rem;'
+                    f'border-left:3px solid #DC2626;'
+                    f'border:1px solid {_zone_bdr};">'
+                    f'<div style="font-size:0.8rem;font-weight:600;color:#DC2626;'
+                    f'font-family:\'{_TC["font_body"]}\',sans-serif;">'
                     f'{_ZONE_ICONS.get(zt,"📍")} {z.get("name","Zone")}</div>'
-                    f'<div style="font-size:0.7rem;color:#64748b;">'
+                    f'<div style="font-size:0.7rem;color:{_TC["muted"]};">'
                     f'{zt.replace("_"," ").title()}</div></div>',
                     unsafe_allow_html=True,
                 )
@@ -584,10 +675,11 @@ def page_incident_log() -> None:
 
     if df.empty:
         st.markdown(
-            '<div style="text-align:center;padding:4rem;color:#64748b;">'
-            '<div style="font-size:3rem;">📜</div>'
-            '<div style="font-size:1.1rem;margin-top:1rem;">No incidents recorded yet</div>'
-            '<div style="font-size:0.85rem;">Start monitoring to populate the log</div></div>',
+            f'<div style="text-align:center;padding:4rem;color:{_TC["muted"]};">' 
+            f'<div style="font-size:3rem;">📜</div>'
+            f'<div style="font-size:1.1rem;margin-top:1rem;color:{_TC["text"]};'
+            f'font-family:\'{_TC["font_display"]}\',sans-serif;">No incidents recorded yet</div>'
+            f'<div style="font-size:0.85rem;color:{_TC["muted"]};">Start monitoring to populate the log</div></div>',
             unsafe_allow_html=True,
         )
         return
@@ -681,13 +773,16 @@ def page_analytics() -> None:
 
     if df.empty:
         st.markdown(
-            '<div style="text-align:center;padding:4rem;color:#64748b;">'
-            '<div style="font-size:3rem;">📊</div>'
-            '<div style="font-size:1.1rem;margin-top:1rem;">No analytics data yet</div>'
-            '<div style="font-size:0.85rem;">Run monitoring to generate analytics</div></div>',
+            f'<div style="text-align:center;padding:4rem;color:{_TC["muted"]};">' 
+            f'<div style="font-size:3rem;">📊</div>'
+            f'<div style="font-size:1.1rem;margin-top:1rem;color:{_TC["text"]};'
+            f'font-family:\'{_TC["font_display"]}\',sans-serif;">No analytics data yet</div>'
+            f'<div style="font-size:0.85rem;color:{_TC["muted"]};">Run monitoring to generate analytics</div></div>',
             unsafe_allow_html=True,
         )
         return
+
+    _layout = get_plotly_theme_template(_THEME)
 
     # KPIs
     k1, k2, k3, k4 = st.columns(4)
@@ -707,45 +802,76 @@ def page_analytics() -> None:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Row 1: type & severity
+    # Row 1: type & severity — Plotly bar charts
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown('<div class="section-header">📈 Incidents by Type</div>',
+        st.markdown('<div class="section-header">📈 INCIDENTS BY TYPE</div>',
                     unsafe_allow_html=True)
-        st.bar_chart(df["incident_type"].value_counts(), color="#38bdf8")
+        type_counts = df["incident_type"].value_counts()
+        fig_type = go.Figure(go.Bar(
+            x=type_counts.index, y=type_counts.values,
+            marker=dict(color=_TC["primary"], line=dict(color=_TC["primary"], width=1)),
+        ))
+        fig_type.update_layout(**_layout, xaxis_title="", yaxis_title="Count")
+        st.plotly_chart(fig_type, use_container_width=True)
     with c2:
-        st.markdown('<div class="section-header">⚡ Severity Distribution</div>',
+        st.markdown('<div class="section-header">⚡ SEVERITY DISTRIBUTION</div>',
                     unsafe_allow_html=True)
-        st.bar_chart(df["severity"].value_counts(), color="#ef4444")
+        sev_counts = df["severity"].value_counts()
+        colour_map = {"CRITICAL": _TC["red"], "WARNING": _TC["orange"], "INFO": _TC["blue"]}
+        fig_sev = go.Figure(go.Bar(
+            x=sev_counts.index, y=sev_counts.values,
+            marker=dict(color=[colour_map.get(s, _TC["blue"]) for s in sev_counts.index]),
+        ))
+        fig_sev.update_layout(**_layout, xaxis_title="", yaxis_title="Count")
+        st.plotly_chart(fig_sev, use_container_width=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Timeline
-    st.markdown('<div class="section-header">📅 Incident Timeline</div>',
+    # Timeline — Plotly area chart
+    st.markdown('<div class="section-header">📅 INCIDENT TIMELINE</div>',
                 unsafe_allow_html=True)
     try:
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
         daily = df.groupby(df["timestamp"].dt.date).size().reset_index(name="incidents")
-        daily = daily.set_index("timestamp")
-        st.area_chart(daily, color="#818cf8")
+        fig_timeline = go.Figure(go.Scatter(
+            x=daily["timestamp"], y=daily["incidents"],
+            mode="lines+markers", fill="tozeroy",
+            line=dict(color=_TC["primary"], width=2),
+            marker=dict(size=6, color=_TC["primary"],
+                        line=dict(color=_TC["bg_card"], width=1)),
+            fillcolor=f"rgba({','.join(str(int(_TC['primary'][i:i+2], 16)) for i in (1,3,5))},0.08)",
+        ))
+        fig_timeline.update_layout(**_layout, xaxis_title="Date", yaxis_title="Incidents")
+        st.plotly_chart(fig_timeline, use_container_width=True)
     except Exception:
         st.info("Insufficient data for timeline chart")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Row 2: camera & hourly
+    # Row 2: camera & hourly — Plotly
     c3, c4 = st.columns(2)
     with c3:
-        st.markdown('<div class="section-header">🎥 By Camera</div>',
+        st.markdown('<div class="section-header">🎥 BY CAMERA</div>',
                     unsafe_allow_html=True)
-        st.bar_chart(df["camera_id"].value_counts(), color="#22c55e")
+        cam_counts = df["camera_id"].value_counts()
+        fig_cam = go.Figure(go.Bar(
+            x=cam_counts.index, y=cam_counts.values,
+            marker=dict(color=_TC["green"]),
+        ))
+        fig_cam.update_layout(**_layout, xaxis_title="Camera", yaxis_title="Count")
+        st.plotly_chart(fig_cam, use_container_width=True)
     with c4:
-        st.markdown('<div class="section-header">🕒 Hourly Pattern</div>',
+        st.markdown('<div class="section-header">🕒 HOURLY PATTERN</div>',
                     unsafe_allow_html=True)
         try:
             hourly = df.groupby(df["timestamp"].dt.hour).size().reset_index(name="incidents")
-            hourly = hourly.set_index("timestamp")
-            st.bar_chart(hourly, color="#f59e0b")
+            fig_hourly = go.Figure(go.Bar(
+                x=hourly["timestamp"], y=hourly["incidents"],
+                marker=dict(color=_TC["orange"]),
+            ))
+            fig_hourly.update_layout(**_layout, xaxis_title="Hour", yaxis_title="Count")
+            st.plotly_chart(fig_hourly, use_container_width=True)
         except Exception:
             st.info("Insufficient data for hourly analysis")
 
@@ -774,7 +900,7 @@ def page_configuration() -> None:
 
     # --- Tab: Cameras --------------------------------------------------------
     with tab_cam:
-        st.markdown('<div class="section-header">Camera Configuration</div>',
+        st.markdown('<div class="section-header">CAMERA CONFIGURATION</div>',
                     unsafe_allow_html=True)
         if selected:
             cam = cameras[selected]
@@ -802,7 +928,7 @@ def page_configuration() -> None:
 
     # --- Tab: Zones ----------------------------------------------------------
     with tab_zone:
-        st.markdown('<div class="section-header">Restricted Zone Management</div>',
+        st.markdown('<div class="section-header">RESTRICTED ZONE MANAGEMENT</div>',
                     unsafe_allow_html=True)
         if selected:
             cam   = cameras[selected]
@@ -895,7 +1021,7 @@ def page_configuration() -> None:
 
     # --- Tab: Alerts ---------------------------------------------------------
     with tab_alert:
-        st.markdown('<div class="section-header">Alert Configuration</div>',
+        st.markdown('<div class="section-header">ALERT CONFIGURATION</div>',
                     unsafe_allow_html=True)
         acfg = config.get("alerts", {})
         c1, c2 = st.columns(2)
@@ -923,10 +1049,6 @@ def page_configuration() -> None:
             st.text_input("Sender", value=os.getenv("ALERT_EMAIL", ""), disabled=True)
         with s4:
             st.text_input("Password", value="••••••••", disabled=True, type="password")
-        st.caption(
-            "💡 For Gmail: use an "
-            "[App Password](https://myaccount.google.com/apppasswords)"
-        )
 
         if st.button("💾 Save Alert Settings", key="save_alerts", use_container_width=True):
             acfg.update({
@@ -937,7 +1059,7 @@ def page_configuration() -> None:
 
     # --- Tab: Detection ------------------------------------------------------
     with tab_det:
-        st.markdown('<div class="section-header">Detection Parameters</div>',
+        st.markdown('<div class="section-header">DETECTION PARAMETERS</div>',
                     unsafe_allow_html=True)
         dcfg = config.get("detection", {})
 

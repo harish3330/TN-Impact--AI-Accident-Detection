@@ -97,6 +97,9 @@ class StateTracker:
         "zone_entry_frame": None,
         "last_position": None,
         "motionless_frames": 0,
+        "prev_aspect_ratio": None,
+        "collision_frames": 0,
+        "impact_frames": 0,
     }
 
     def __init__(self):
@@ -145,6 +148,29 @@ class StateTracker:
             s["motionless_frames"] = s["motionless_frames"] + 1 if d < threshold else 0
         s["last_position"] = pos
         return s["motionless_frames"]
+
+    # ── sudden fall (AR change) ─────────────────────────────────────
+
+    def update_aspect_ratio(self, tid: int, ar: float) -> Tuple[Optional[float], float]:
+        """Store current AR; return (prev_ar, current_ar)."""
+        s = self._states[tid]
+        prev = s["prev_aspect_ratio"]
+        s["prev_aspect_ratio"] = ar
+        return prev, ar
+
+    # ── vehicle collision ───────────────────────────────────────────
+
+    def update_collision_state(self, vid: int, colliding: bool) -> int:
+        s = self._states[vid]
+        s["collision_frames"] = s["collision_frames"] + 1 if colliding else 0
+        return s["collision_frames"]
+
+    # ── person-vehicle impact ───────────────────────────────────────
+
+    def update_impact_state(self, pid: int, impacting: bool) -> int:
+        s = self._states[pid]
+        s["impact_frames"] = s["impact_frames"] + 1 if impacting else 0
+        return s["impact_frames"]
 
     # ── cleanup ─────────────────────────────────────────────────────
 

@@ -43,10 +43,10 @@ logger = logging.getLogger(__name__)
 
 _SOURCES = {
     "1": ("Webcam", "0"),
-    "2": ("Sample video 1 (Demo)", "data/sample_videos/demo.mp4"),
-    "3": ("Sample video 2 (Airgas)", "data/sample_videos/workplace_safety_1.mp4"),
-    "4": ("Sample video 3 (Blocked In)", "data/sample_videos/workplace_safety_2.mp4"),
-    "5": ("Sample video 4 (Behind Curve)", "data/sample_videos/workplace_safety_3.mp4"),
+    "2": ("Fall Detection Test", "data/sample_videos/test_fall_detection.mp4"),
+    "3": ("Proximity Test (Person+Car)", "data/sample_videos/test_proximity.mp4"),
+    "4": ("Motionless Body Test", "data/sample_videos/test_motionless.mp4"),
+    "5": ("Zone Breach Test", "data/sample_videos/test_zone_breach.mp4"),
 }
 
 

@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 _SOURCES = {
     "1": ("Webcam", "0"),
     "2": ("Fall Detection Test", "data/sample_videos/test_fall_detection.mp4"),
-    "3": ("Proximity Test (Person+Car)", "data/sample_videos/test_proximity.mp4"),
+    "3": ("Accident Detection Test", "data/sample_videos/test_proximity.mp4"),
     "4": ("Motionless Body Test", "data/sample_videos/test_motionless.mp4"),
     "5": ("Zone Breach Test", "data/sample_videos/test_zone_breach.mp4"),
 }
@@ -78,7 +78,8 @@ def main() -> None:
     detection_config = config.get("detection", {})
     confidence_threshold = detection_config.get("confidence_threshold", 0.5)
     
-    detector = SafetyDetector("yolov8n.pt", confidence_threshold=confidence_threshold)
+    model_name = detection_config.get("model_name", "yolo26n.pt")
+    detector = SafetyDetector(model_name, confidence_threshold=confidence_threshold)
     alert_manager = AlertManager("data/incidents", config=config)
 
     source = _choose_source()
@@ -103,7 +104,7 @@ def main() -> None:
         proc_n += 1
 
         detections = detector.detect(frame)
-        incidents = rule_engine.check_incidents(detections, camera_id, proc_n)
+        incidents = rule_engine.check_incidents(detections, camera_id, proc_n, frame=frame)
 
         for inc in incidents:
             incidents_total += 1

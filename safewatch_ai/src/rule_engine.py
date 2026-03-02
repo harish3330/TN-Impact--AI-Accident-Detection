@@ -4,6 +4,7 @@ import json
 import logging
 from datetime import datetime
 from typing import Dict, List
+import numpy as np
 
 from src.utils.geometry import GeometryUtils
 from src.utils.tracking import StateTracker
@@ -28,6 +29,7 @@ class RuleEngine:
     def __init__(self, config_path: str):
         self.config: Dict = {}
         self.state_tracker = StateTracker()
+        self.prev_frame_brightness = None
         self._load_config(config_path)
 
     # ── configuration ───────────────────────────────────────────────
@@ -79,8 +81,7 @@ class RuleEngine:
 
     # ── incident dispatcher ─────────────────────────────────────────
 
-    def check_incidents(self, detections: Dict, camera_id: str,
-                        frame_idx: int) -> List[Dict]:
+    def check_incidents(self, detections, camera_id, frame_idx, frame=None):
         """Run all rule checks and return a list of incident dicts."""
         cam = self.config.get("cameras", {}).get(camera_id, {})
         if not cam:
@@ -105,6 +106,14 @@ class RuleEngine:
         incidents += self._check_person_vehicle_impact(persons, vehicles, camera_id, cam)
         incidents += self._check_vehicle_collision(vehicles, camera_id, cam)
         incidents += self._check_ppe(persons, camera_id, cam)
+        
+        # Check for blast/explosion if frame provided
+        if frame is not None:
+            try:
+                incidents += self._check_blast(frame, camera_id)
+            except Exception as e:
+                logger.warning("Blast detection failed: %s", e)
+        
         return incidents
 
     # ── individual checks ───────────────────────────────────────────
@@ -119,9 +128,18 @@ class RuleEngine:
         global_config = self.config.get("detection", {})
         aspect_ratio_threshold = global_config.get("fall_aspect_ratio", 0.8)
         required_frames = global_config.get("fall_detection_frames", 4)
+        min_person_bbox_area = global_config.get("min_person_bbox_area", 12000)
+        min_confidence = global_config.get("fall_min_confidence", 0.5)
 
         incidents: List[Dict] = []
         for x1, y1, x2, y2, conf, tid in persons:
+            bbox = (x1, y1, x2, y2)
+            if conf < min_confidence:
+                self.state_tracker.update_fall_state(tid, False)
+                continue
+            if GeometryUtils.get_bbox_area(bbox) < min_person_bbox_area:
+                self.state_tracker.update_fall_state(tid, False)
+                continue
             ar = GeometryUtils.get_bbox_aspect_ratio((x1, y1, x2, y2))
             # Fall detected when height/width < threshold (person is horizontal)
             is_falling = ar < aspect_ratio_threshold
@@ -159,7 +177,7 @@ class RuleEngine:
 
     def _check_zone_breach(self, persons: List, camera_id: str,
                            frame_idx: int, cfg: Dict) -> List[Dict]:
-        """Person centroid inside a restricted polygon."""
+        """Emit an incident only when a person newly enters a restricted polygon."""
         incidents: List[Dict] = []
         for zone in cfg.get("restricted_zones", []):
             pts = zone.get("points", [])
@@ -169,8 +187,10 @@ class RuleEngine:
             for x1, y1, x2, y2, conf, tid in persons:
                 c = GeometryUtils.get_centroid((x1, y1, x2, y2))
                 in_zone = GeometryUtils.point_in_polygon(c, pts)
+                prev_entry = self.state_tracker.get_zone_entry_frame(tid)
                 self.state_tracker.update_zone_entry(tid, in_zone, frame_idx)
-                if in_zone and self.state_tracker.get_zone_entry_frame(tid) is not None:
+                just_entered = in_zone and prev_entry is None
+                if just_entered:
                     incidents.append(self._incident(
                         "ZONE_BREACH", camera_id, conf, (x1, y1, x2, y2), tid,
                         f"Person entered restricted zone: {name}", "WARNING",
@@ -211,14 +231,23 @@ class RuleEngine:
         """
         if not cfg.get("fall_detection", True):
             return []
+        global_config = self.config.get("detection", {})
+        prev_ar_min = global_config.get("sudden_fall_prev_ar_min", 1.35)
+        cur_ar_max = global_config.get("sudden_fall_cur_ar_max", 0.65)
+        min_ar_drop = global_config.get("sudden_fall_min_drop", 0.7)
+        min_person_bbox_area = global_config.get("min_person_bbox_area", 12000)
+        min_confidence = global_config.get("fall_min_confidence", 0.5)
         incidents: List[Dict] = []
         for x1, y1, x2, y2, conf, tid in persons:
+            bbox = (x1, y1, x2, y2)
+            if conf < min_confidence or GeometryUtils.get_bbox_area(bbox) < min_person_bbox_area:
+                continue
             ar = GeometryUtils.get_bbox_aspect_ratio((x1, y1, x2, y2))
             prev_ar, cur_ar = self.state_tracker.update_aspect_ratio(tid, ar)
             if prev_ar is not None:
-                # Person went from standing (AR > 1.2) to horizontal (AR < 0.85)
+                # Person went from standing to horizontal rapidly
                 ar_drop = prev_ar - cur_ar
-                if prev_ar > 1.2 and cur_ar < 0.85 and ar_drop > 0.5:
+                if prev_ar > prev_ar_min and cur_ar < cur_ar_max and ar_drop > min_ar_drop:
                     incidents.append(self._incident(
                         "SUDDEN_FALL", camera_id, conf, (x1, y1, x2, y2), tid,
                         (f"Sudden fall detected — AR dropped from "
@@ -256,7 +285,8 @@ class RuleEngine:
         """Two vehicles with overlapping bboxes → potential collision."""
         global_config = self.config.get("detection", {})
         required_frames = global_config.get("collision_detection_frames", 2)
-        iou_threshold = global_config.get("collision_iou_threshold", 0.08)
+        iou_threshold = global_config.get("collision_iou_threshold", 0.05)
+        distance_threshold = global_config.get("collision_distance_threshold", 100)
 
         incidents: List[Dict] = []
         for i, (ax1, ay1, ax2, ay2, aconf, aid) in enumerate(vehicles):
@@ -268,7 +298,7 @@ class RuleEngine:
                 ac = GeometryUtils.get_centroid(abox)
                 bc = GeometryUtils.get_centroid(bbox_b)
                 dist = GeometryUtils.distance_between_points(ac, bc)
-                colliding = iou > iou_threshold or dist < 80
+                colliding = iou > iou_threshold or dist < distance_threshold
                 dur = self.state_tracker.update_collision_state(aid, colliding)
                 if colliding and dur >= required_frames:
                     incidents.append(self._incident(
@@ -304,6 +334,57 @@ class RuleEngine:
                         f"Person in {zone_name} without proper PPE", "WARNING",
                         zone_name=zone_name,
                     ))
+        return incidents
+
+    def _check_blast(self, frame: np.ndarray, camera_id: str) -> List[Dict]:
+        """Detect potential explosions/blasts by analyzing frame brightness.
+        
+        Looks for sudden, significant increases in brightness that indicate
+        explosion or other high-energy events.
+        """
+        global_config = self.config.get("detection", {})
+        brightness_threshold = global_config.get("blast_brightness_threshold", 60)
+        area_threshold = global_config.get("blast_area_threshold", 0.15)
+        
+        incidents: List[Dict] = []
+        
+        try:
+            # Convert to grayscale and calculate mean brightness
+            if len(frame.shape) == 3:
+                gray = np.mean(frame, axis=2)  # Average RGB channels
+            else:
+                gray = frame
+            
+            current_brightness = float(np.mean(gray))
+            
+            # Compare with previous frame
+            if self.prev_frame_brightness is not None:
+                brightness_delta = current_brightness - self.prev_frame_brightness
+                
+                # If brightness increased significantly, check for blast area
+                if brightness_delta > brightness_threshold:
+                    # Calculate what percentage of the frame is very bright
+                    bright_pixels = np.sum(gray > 200)
+                    bright_percentage = bright_pixels / gray.size
+                    
+                    # If significant area is very bright, it's likely an explosion
+                    if bright_percentage > area_threshold:
+                        incidents.append(self._incident(
+                            "BLAST_DETECTED", camera_id, 0.95,
+                            (0, 0, frame.shape[1], frame.shape[0]), -1,
+                            f"Potential explosion/blast detected "
+                            f"(brightness delta: {brightness_delta:.1f}, bright area: {bright_percentage*100:.1f}%)",
+                            "CRITICAL",
+                            brightness_delta=brightness_delta,
+                            bright_area_pct=bright_percentage,
+                        ))
+            
+            # Update previous brightness
+            self.prev_frame_brightness = current_brightness
+            
+        except Exception as e:
+            logger.warning("Blast detection error: %s", e)
+        
         return incidents
 
     # ── helpers ──────────────────────────────────────────────────────

@@ -7,20 +7,20 @@
         {
           "name": "Restricted Zone A",
           "points": [
-            [50, 50],
-            [600, 50],
-            [600, 400],
-            [50, 400]
+            [320, 170],
+            [430, 170],
+            [430, 300],
+            [320, 300]
           ],
           "type": "no_entry"
         },
         {
           "name": "Vehicle Lane",
           "points": [
-            [0, 200],
-            [850, 200],
-            [850, 480],
-            [0, 480]
+            [470, 320],
+            [620, 320],
+            [620, 450],
+            [470, 450]
           ],
           "type": "no_entry"
         }
@@ -66,16 +66,25 @@
     "default_recipient": "safety@factory.com"
   },
   "detection": {
-    "confidence_threshold": 0.4,
+    "model_name": "yolo26n.pt",
+    "confidence_threshold": 0.5,
     "fps_processing": 5,
-    "fall_aspect_ratio": 0.8,
-    "fall_detection_frames": 4,
-    "motionless_threshold_px": 30,
-    "motionless_detection_frames": 8,
-    "proximity_detection_frames": 3,
+    "fall_aspect_ratio": 0.65,
+    "fall_detection_frames": 8,
+    "fall_min_confidence": 0.55,
+    "sudden_fall_prev_ar_min": 1.35,
+    "sudden_fall_cur_ar_max": 0.65,
+    "sudden_fall_min_drop": 0.7,
+    "min_person_bbox_area": 18000,
+    "motionless_threshold_px": 18,
+    "motionless_detection_frames": 15,
+    "proximity_detection_frames": 5,
     "impact_detection_frames": 2,
     "impact_iou_threshold": 0.05,
     "collision_detection_frames": 2,
-    "collision_iou_threshold": 0.08
+    "collision_iou_threshold": 0.05,
+    "collision_distance_threshold": 100,
+    "blast_brightness_threshold": 60,
+    "blast_area_threshold": 0.15
   }
 }

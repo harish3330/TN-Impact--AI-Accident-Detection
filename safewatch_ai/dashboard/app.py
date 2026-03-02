@@ -17,11 +17,20 @@ from datetime import datetime
 import sqlite3
 import sys
 import os
+import time
+import logging
 
 # ---------------------------------------------------------------------------
 # Path setup — allow imports from project root
 # ---------------------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 from src.video_capture import VideoCapture
 from src.detector import SafetyDetector
@@ -53,6 +62,14 @@ if "theme" not in st.session_state:
 _THEME = st.session_state.theme
 st.markdown(get_custom_css(theme=_THEME), unsafe_allow_html=True)
 
+
+def _create_detector_from_config() -> SafetyDetector:
+    cfg = RuleEngine("config/camera_config.json").get_config()
+    det_cfg = cfg.get("detection", {})
+    model_name = det_cfg.get("model_name", "yolo26n.pt")
+    confidence = det_cfg.get("confidence_threshold", 0.5)
+    return SafetyDetector(model_name=model_name, confidence_threshold=confidence)
+
 # Inject JS to toggle the dark-theme class on .stApp (st.markdown strips <script>)
 _theme_js = f"""
 <script>
@@ -77,7 +94,7 @@ components.html(get_particle_canvas_html(theme=_THEME), height=0)
 # Session state initialisation
 # ---------------------------------------------------------------------------
 _DEFAULTS = {
-    "detector":              lambda: SafetyDetector(confidence_threshold=0.35),
+    "detector":              _create_detector_from_config,
     "rule_engine":           lambda: RuleEngine("config/camera_config.json"),
     "alert_manager":         lambda: AlertManager(),
     "incidents":             lambda: [],
@@ -85,6 +102,11 @@ _DEFAULTS = {
     "total_frames_processed": lambda: 0,
     "session_start":         lambda: datetime.now(),
 }
+
+# Clear cached rule_engine to force reload with updated signature
+if "rule_engine" in st.session_state:
+    del st.session_state["rule_engine"]
+
 for _key, _factory in _DEFAULTS.items():
     if _key not in st.session_state:
         st.session_state[_key] = _factory()
@@ -427,12 +449,13 @@ def page_overview() -> None:
 _SOURCE_MAP = {
     "Webcam (0)":                     "0",
     "🚶 Fall Detection Test":         "data/sample_videos/test_fall_detection.mp4",
-    "🚗 Proximity Test (Person+Car)": "data/sample_videos/test_proximity.mp4",
+    "💥 Accident Detection Test":     "data/sample_videos/test_proximity.mp4",
     "🧍 Motionless Body Test":        "data/sample_videos/test_motionless.mp4",
     "⛔ Zone Breach Test":            "data/sample_videos/test_zone_breach.mp4",
     "📹 General Surveillance":        "data/sample_videos/test_general_surveillance.mp4",
     "Sample Video 1":                 "data/sample_videos/demo.mp4",
     "Sample Video 2":                 "data/sample_videos/demo2.mp4",
+    "🏭 Factory Accidents":           "data/sample_videos/10 Factory Accidents Caught on Security Camera.mp4",
 }
 
 _ZONE_ICONS = {
@@ -458,7 +481,7 @@ def _draw_hud(frame: np.ndarray, frame_no: int,
     return frame
 
 
-def _monitoring_loop(source: str, video_ph, stats_ph) -> None:
+def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
     """Core loop: capture → detect → annotate → alert."""
     try:
         cap = VideoCapture(source)
@@ -468,9 +491,13 @@ def _monitoring_loop(source: str, video_ph, stats_ph) -> None:
         return
 
     frame_count = incident_count = 0
+    fps = cap.get_fps()
+    frame_delay = 1.0 / fps if fps > 0 else 0.033  # Delay per frame in seconds
 
     try:
         while st.session_state.monitoring_active:
+            frame_start_time = time.time()
+            
             frame = cap.get_frame()
             if frame is None:
                 st.info("📼 End of video stream")
@@ -480,14 +507,27 @@ def _monitoring_loop(source: str, video_ph, stats_ph) -> None:
             frame_count += 1
             st.session_state.total_frames_processed += 1
 
-            if frame_count % 6 != 0:          # process every 6th frame (~5 FPS)
+            # Process every 3rd frame instead of 6th for faster detection
+            if frame_count % 3 != 0:
+                # Sleep to maintain video playback speed even for skipped frames
+                elapsed = time.time() - frame_start_time
+                sleep_time = frame_delay - elapsed
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
                 continue
 
             # Detect + check rules
             detections = st.session_state.detector.detect(frame)
-            incidents  = st.session_state.rule_engine.check_incidents(
-                detections, "camera_1", frame_count,
-            )
+            try:
+                incidents  = st.session_state.rule_engine.check_incidents(
+                    detections, "camera_1", frame_count, frame=frame
+                )
+            except TypeError as e:
+                # Fallback: try without frame parameter for backwards compatibility
+                logger.warning("Rule engine call with frame failed: %s, retrying without", e)
+                incidents = st.session_state.rule_engine.check_incidents(
+                    detections, "camera_1", frame_count
+                )
 
             # Annotate frame
             display = st.session_state.detector.draw_detections(
@@ -506,15 +546,33 @@ def _monitoring_loop(source: str, video_ph, stats_ph) -> None:
             video_ph.image(cv2.cvtColor(display, cv2.COLOR_BGR2RGB),
                            use_container_width=True)
 
-            # Process incidents
+            # Process incidents IMMEDIATELY and display them right away
             if incidents:
                 incident_count += len(incidents)
                 contacts  = cam_cfg.get("alert_contacts", [])
                 recipient = contacts[0] if contacts else ""
                 for inc in incidents:
+                    # Add timestamp if not already there
+                    if "timestamp" not in inc:
+                        inc["timestamp"] = datetime.now()
+                    # Try to dispatch alert
+                    dispatched = st.session_state.alert_manager.send_alert(inc, frame, recipient)
+                    # Add to session state even if alert wasn't dispatched (cooldown)
                     st.session_state.incidents.append(inc)
-                    st.session_state.alert_manager.send_alert(inc, frame, recipient)
                     save_incident_to_db(inc)
+                    
+                    # Update alerts placeholder in real-time
+                    if alerts_ph:
+                        with alerts_ph.container():
+                            st.markdown('<div class="section-header">🔔 Live Alerts</div>',
+                                        unsafe_allow_html=True)
+                            for incident in reversed(st.session_state.incidents[-5:]):
+                                sev = "critical" if incident.get("severity") == "CRITICAL" else "warning"
+                                ts  = incident.get("timestamp", datetime.now())
+                                ts  = ts.strftime("%H:%M:%S") if hasattr(ts, "strftime") else str(ts)[:19]
+                                st.markdown(render_alert_card(
+                                    incident.get("type", ""), incident.get("details", ""), ts, sev,
+                                ), unsafe_allow_html=True)
 
             # Stats bar
             with stats_ph.container():
@@ -525,8 +583,15 @@ def _monitoring_loop(source: str, video_ph, stats_ph) -> None:
                 delta = f"+{len(incidents)}" if incidents else None
                 s4.metric("Incidents", incident_count, delta=delta, delta_color="inverse")
 
+            # Sleep to maintain video playback speed
+            elapsed = time.time() - frame_start_time
+            sleep_time = frame_delay - elapsed
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+
     except Exception as e:
         st.error(f"Monitoring error: {e}")
+        logger.exception("Monitoring loop error")
     finally:
         cap.release()
         st.session_state.monitoring_active = False
@@ -542,6 +607,11 @@ def page_live_monitor() -> None:
     )
 
     col_main, col_side = st.columns([3, 1])
+
+    with col_side:
+        # Live alerts sidebar - create placeholder early
+        alerts_ph = st.empty()
+        alerts_ph_initialized = False
 
     with col_main:
         # Source selector
@@ -581,7 +651,7 @@ def page_live_monitor() -> None:
         stats_ph = st.empty()
 
         if st.session_state.monitoring_active:
-            _monitoring_loop(source, video_ph, stats_ph)
+            _monitoring_loop(source, video_ph, stats_ph, alerts_ph)
         else:
             _bg = 'rgba(255,255,255,0.7)' if _THEME == 'light' else 'rgba(15,23,42,0.85)'
             _bdr = 'rgba(37,99,235,0.10)' if _THEME == 'light' else 'rgba(0,245,255,0.15)'
@@ -603,24 +673,17 @@ def page_live_monitor() -> None:
             )
 
     with col_side:
-        # Live alerts sidebar
-        st.markdown('<div class="section-header">🔔 Live Alerts</div>',
-                    unsafe_allow_html=True)
-        if st.session_state.incidents:
-            for inc in reversed(st.session_state.incidents[-8:]):
-                sev = "critical" if inc.get("severity") == "CRITICAL" else "warning"
-                ts  = inc.get("timestamp", datetime.now())
-                ts  = ts.strftime("%H:%M:%S") if hasattr(ts, "strftime") else str(ts)[:19]
-                st.markdown(render_alert_card(
-                    inc.get("type", ""), inc.get("details", ""), ts, sev,
-                ), unsafe_allow_html=True)
-        else:
-            st.markdown(
-                f'<div style="text-align:center;padding:2rem;color:{_TC["muted"]};">' 
-                f'<div style="font-size:2rem;">🔇</div>'
-                f'<div style="font-size:0.85rem;">No alerts yet</div></div>',
-                unsafe_allow_html=True,
-            )
+        # Initialize alerts display
+        if not alerts_ph_initialized:
+            with alerts_ph.container():
+                st.markdown('<div class="section-header">🔔 Live Alerts</div>',
+                            unsafe_allow_html=True)
+                st.markdown(
+                    f'<div style="text-align:center;padding:2rem;color:{_TC["muted"]};">' 
+                    f'<div style="font-size:2rem;">🔇</div>'
+                    f'<div style="font-size:0.85rem;">No alerts yet</div></div>',
+                    unsafe_allow_html=True,
+                )
 
         st.markdown("---")
 

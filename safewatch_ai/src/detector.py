@@ -1,4 +1,4 @@
-"""YOLOv8-based object detector for industrial safety monitoring."""
+"""Ultralytics YOLO-based detector for industrial safety monitoring."""
 
 import logging
 from typing import Dict, List
@@ -14,9 +14,9 @@ _VEHICLE_CLASSES = {"car", "truck", "bus", "motorbike"}
 
 
 class SafetyDetector:
-    """Detect persons and vehicles in video frames using YOLOv8."""
+    """Detect persons and vehicles in video frames using Ultralytics YOLO."""
     
-    def __init__(self, model_name: str = "yolov8n.pt",
+    def __init__(self, model_name: str = "yolo26n.pt",
                  confidence_threshold: float = 0.5):
         self.confidence_threshold = confidence_threshold
         self.object_tracks: Dict[int, tuple] = {}   # track_id → (class, centroid)

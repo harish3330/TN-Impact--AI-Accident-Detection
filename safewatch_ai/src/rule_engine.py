@@ -107,12 +107,16 @@ class RuleEngine:
         incidents += self._check_vehicle_collision(vehicles, camera_id, cam)
         incidents += self._check_ppe(persons, camera_id, cam)
         
-        # Check for blast/explosion if frame provided
+        # Check for blast/explosion and fire if frame provided
         if frame is not None:
             try:
                 incidents += self._check_blast(frame, camera_id)
             except Exception as e:
                 logger.warning("Blast detection failed: %s", e)
+            try:
+                incidents += self._check_fire(frame, camera_id)
+            except Exception as e:
+                logger.warning("Fire detection failed: %s", e)
         
         return incidents
 
@@ -384,6 +388,78 @@ class RuleEngine:
             
         except Exception as e:
             logger.warning("Blast detection error: %s", e)
+        
+        return incidents
+
+    def _check_fire(self, frame: np.ndarray, camera_id: str) -> List[Dict]:
+        """Detect fire/flames by analyzing orange-red color regions in the frame.
+        
+        Uses HSV color space to detect fire-like colors (orange, red, yellow).
+        """
+        global_config = self.config.get("detection", {})
+        fire_area_threshold = global_config.get("fire_area_threshold", 0.02)  # 2% of frame
+        fire_min_pixels = global_config.get("fire_min_pixels", 5000)
+        
+        incidents: List[Dict] = []
+        
+        try:
+            import cv2
+            
+            # Convert to HSV color space
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            
+            # Define color ranges for fire (orange-red-yellow)
+            # Lower range: red/orange
+            lower1 = np.array([0, 100, 100])
+            upper1 = np.array([25, 255, 255])
+            # Upper range: red (wraps around in HSV)
+            lower2 = np.array([160, 100, 100])
+            upper2 = np.array([180, 255, 255])
+            # Yellow/bright orange
+            lower3 = np.array([25, 100, 200])
+            upper3 = np.array([35, 255, 255])
+            
+            # Create masks for fire colors
+            mask1 = cv2.inRange(hsv, lower1, upper1)
+            mask2 = cv2.inRange(hsv, lower2, upper2)
+            mask3 = cv2.inRange(hsv, lower3, upper3)
+            
+            # Combine masks
+            fire_mask = mask1 | mask2 | mask3
+            
+            # Count fire-colored pixels
+            fire_pixels = np.sum(fire_mask > 0)
+            total_pixels = frame.shape[0] * frame.shape[1]
+            fire_percentage = fire_pixels / total_pixels
+            
+            # Detect fire if significant area shows fire colors
+            if fire_pixels > fire_min_pixels and fire_percentage > fire_area_threshold:
+                # Find bounding box of fire region
+                coords = np.column_stack(np.where(fire_mask > 0))
+                if len(coords) > 0:
+                    y_min, x_min = coords.min(axis=0)
+                    y_max, x_max = coords.max(axis=0)
+                    
+                    # Rate cooldown to avoid spam
+                    fire_state = getattr(self, '_fire_cooldown', 0)
+                    if fire_state <= 0:
+                        incidents.append(self._incident(
+                            "FIRE_DETECTED", camera_id, 0.90,
+                            (int(x_min), int(y_min), int(x_max), int(y_max)), -1,
+                            f"Fire/flames detected "
+                            f"(fire area: {fire_percentage*100:.1f}%, {fire_pixels} pixels)",
+                            "CRITICAL",
+                            fire_area_pct=fire_percentage,
+                            fire_pixels=fire_pixels,
+                        ))
+                        self._fire_cooldown = 15  # Cooldown frames
+                    else:
+                        self._fire_cooldown -= 1
+            else:
+                self._fire_cooldown = max(0, getattr(self, '_fire_cooldown', 0) - 1)
+                
+        except Exception as e:
+            logger.warning("Fire detection error: %s", e)
         
         return incidents
 

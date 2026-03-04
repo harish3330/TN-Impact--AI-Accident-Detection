@@ -42,7 +42,7 @@ from dashboard.components.enhanced_bootstrap_styles import (
     render_detection_card, render_feature_box,
     get_particle_canvas_html, get_typing_effect_html,
     get_live_clock_html, get_ai_status_badge_html,
-    get_plotly_theme_template, get_theme_colors,
+    get_plotly_theme_template, get_theme_colors, get_logo_html,
 )
 
 # ---------------------------------------------------------------------------
@@ -290,6 +290,9 @@ def render_sidebar() -> str:
 
 def page_overview() -> None:
     """Dashboard home — KPIs, detection capabilities, recent alerts."""
+    # Logo at top center
+    components.html(get_logo_html(theme=_THEME), height=70)
+
     # Typing hero + clock
     components.html(get_typing_effect_html(
         "Real-time AI-powered Industrial Accident Detection & Prevention",
@@ -446,16 +449,18 @@ def page_overview() -> None:
 # ║  PAGE: LIVE MONITOR                                                    ║
 # ╚═════════════════════════════════════════════════════════════════════════╝
 
+_PROJECT_ROOT = Path(__file__).parent.parent  # safewatch_ai/
+
 _SOURCE_MAP = {
     "Webcam (0)":                     "0",
-    "🚶 Fall Detection Test":         "data/sample_videos/test_fall_detection.mp4",
-    "💥 Accident Detection Test":     "data/sample_videos/test_proximity.mp4",
-    "🧍 Motionless Body Test":        "data/sample_videos/test_motionless.mp4",
-    "⛔ Zone Breach Test":            "data/sample_videos/test_zone_breach.mp4",
-    "📹 General Surveillance":        "data/sample_videos/test_general_surveillance.mp4",
-    "Sample Video 1":                 "data/sample_videos/demo.mp4",
-    "Sample Video 2":                 "data/sample_videos/demo2.mp4",
-    "🏭 Factory Accidents":           "data/sample_videos/10 Factory Accidents Caught on Security Camera.mp4",
+    "🚶 Fall Detection Test":         str(_PROJECT_ROOT / "data/sample_videos/test_fall_detection.mp4"),
+    "💥 Accident Detection Test":     str(_PROJECT_ROOT / "data/sample_videos/test_proximity.mp4"),
+    "🧍 Motionless Body Test":        str(_PROJECT_ROOT / "data/sample_videos/test_motionless.mp4"),
+    "⛔ Zone Breach Test":            str(_PROJECT_ROOT / "data/sample_videos/test_zone_breach.mp4"),
+    "📹 General Surveillance":        str(_PROJECT_ROOT / "data/sample_videos/test_general_surveillance.mp4"),
+    "Sample Video 1":                 str(_PROJECT_ROOT / "data/sample_videos/demo.mp4"),
+    "Sample Video 2":                 str(_PROJECT_ROOT / "data/sample_videos/demo2.mp4"),
+    "🏭 Factory Accidents":           str(_PROJECT_ROOT / "data/sample_videos/10 Factory Accidents Caught on Security Camera.mp4"),
 }
 
 _ZONE_ICONS = {
@@ -599,6 +604,9 @@ def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
 
 def page_live_monitor() -> None:
     """Real-time video feed with AI detection overlay."""
+    # Logo at top center
+    components.html(get_logo_html(theme=_THEME), height=70)
+
     st.markdown(
         '<div class="header-banner">'
         '<h1>🎥 Live Monitoring <span class="accent">Center</span></h1>'
@@ -719,6 +727,9 @@ def page_live_monitor() -> None:
 
 def page_incident_log() -> None:
     """Searchable incident history with filters and CSV export."""
+    # Logo at top center
+    components.html(get_logo_html(theme=_THEME), height=70)
+
     st.markdown(
         '<div class="header-banner">'
         '<h1>📜 Incident <span class="accent">Log</span></h1>'
@@ -819,6 +830,9 @@ def page_incident_log() -> None:
 
 def page_analytics() -> None:
     """Charts, trends, and pattern analysis."""
+    # Logo at top center
+    components.html(get_logo_html(theme=_THEME), height=70)
+
     st.markdown(
         '<div class="header-banner">'
         '<h1>📊 Safety <span class="accent">Analytics</span></h1>'
@@ -945,6 +959,9 @@ def page_analytics() -> None:
 
 def page_configuration() -> None:
     """Camera, zone, alert, and detection parameter settings."""
+    # Logo at top center
+    components.html(get_logo_html(theme=_THEME), height=70)
+
     st.markdown(
         '<div class="header-banner">'
         '<h1>⚙️ System <span class="accent">Configuration</span></h1>'

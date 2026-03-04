@@ -391,6 +391,9 @@ def get_custom_css(theme: str = "light") -> str:
         margin: 0 0 0.3rem 0;
         color: var(--text-primary);
     }
+    .header-banner h1 a {
+        display: none !important;
+    }
     .header-banner h1 .accent {
         background: linear-gradient(135deg, var(--primary), var(--cyan));
         -webkit-background-clip: text;
@@ -1111,3 +1114,25 @@ def get_theme_colors(theme: str = "light") -> dict:
         bar_grad="linear-gradient(90deg,#2563EB,#06B6D4)",
         font_display="'Poppins'", font_body="'Inter'",
     )
+
+
+def get_logo_html(theme: str = "light") -> str:
+    """Return an SVG logo using theme colors (Google-style multi-color letters)."""
+    tc = get_theme_colors(theme)
+    # Colors: S=cyan, a=primary, f=green, e=orange, W=red, a=cyan, t=primary, c=green, h=orange
+    return f'''
+    <div style="display:flex; justify-content:center; align-items:center; padding: 12px 0 8px 0;">
+        <svg width="240" height="50" viewBox="0 0 240 50" xmlns="http://www.w3.org/2000/svg">
+            <!-- Shield icon -->
+            <path d="M25 5 L40 10 L40 25 C40 35 32 42 25 45 C18 42 10 35 10 25 L10 10 Z" 
+                  fill="none" stroke="{tc['cyan']}" stroke-width="2.5"/>
+            <path d="M20 25 L24 29 L32 19" 
+                  fill="none" stroke="{tc['green']}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            
+            <!-- SafeWatch text with multi-color letters -->
+            <text x="50" y="35" font-family="{tc['font_display']}, sans-serif" font-weight="700" font-size="28">
+                <tspan fill="{tc['cyan']}">S</tspan><tspan fill="{tc['primary']}">a</tspan><tspan fill="{tc['green']}">f</tspan><tspan fill="{tc['orange']}">e</tspan><tspan fill="{tc['red']}">W</tspan><tspan fill="{tc['cyan']}">a</tspan><tspan fill="{tc['primary']}">t</tspan><tspan fill="{tc['green']}">c</tspan><tspan fill="{tc['orange']}">h</tspan>
+            </text>
+        </svg>
+    </div>
+    '''

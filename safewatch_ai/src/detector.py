@@ -5,7 +5,11 @@ from typing import Dict, List
 
 import cv2
 import numpy as np
-from ultralytics import YOLO
+
+try:
+    from ultralytics import YOLO
+except Exception:
+    YOLO = None
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +25,14 @@ class SafetyDetector:
         self.confidence_threshold = confidence_threshold
         self.object_tracks: Dict[int, tuple] = {}   # track_id → (class, centroid)
         self.next_track_id = 1
+        self.model = None
+
+        if YOLO is None:
+            logger.warning(
+                "ultralytics is not installed; detector will return empty detections. "
+                "Install with: python -m pip install ultralytics"
+            )
+            return
 
         logger.info("Loading YOLO model: %s", model_name)
         self.model = YOLO(model_name)
@@ -33,8 +45,21 @@ class SafetyDetector:
         """
         empty: Dict = {"persons": [], "vehicles": [], "ppe": {"hardhat": [], "vest": []}}
 
+        if self.model is None:
+            return empty
+
         try:
-            results = self.model(frame, conf=self.confidence_threshold, verbose=False)
+            # Resize frame for faster inference (416px for speed)
+            h, w = frame.shape[:2]
+            scale = min(416 / w, 416 / h, 1.0)
+            if scale < 1.0:
+                new_w, new_h = int(w * scale), int(h * scale)
+                input_frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+            else:
+                input_frame = frame
+                scale = 1.0
+            
+            results = self.model(input_frame, conf=self.confidence_threshold, verbose=False, imgsz=416, half=False)
         except Exception as e:
             logger.error("Detection error: %s", e)
             return empty
@@ -46,7 +71,11 @@ class SafetyDetector:
         names = self.model.names  # built-in id → name mapping
 
         for box in results[0].boxes:
-            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
+            # Scale coordinates back to original frame size
+            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+            if scale < 1.0:
+                x1, y1, x2, y2 = x1/scale, y1/scale, x2/scale, y2/scale
+            x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
             conf = float(box.conf[0])
             cls_name = names.get(int(box.cls[0]), "unknown")
             track_id = self._get_track_id(x1, y1, x2, y2, cls_name)

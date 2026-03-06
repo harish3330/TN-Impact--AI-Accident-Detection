@@ -67,7 +67,8 @@ def _create_detector_from_config() -> SafetyDetector:
     cfg = RuleEngine("config/camera_config.json").get_config()
     det_cfg = cfg.get("detection", {})
     model_name = det_cfg.get("model_name", "yolo26n.pt")
-    confidence = det_cfg.get("confidence_threshold", 0.5)
+    # Use lower confidence for faster inference
+    confidence = det_cfg.get("confidence_threshold", 0.4)
     return SafetyDetector(model_name=model_name, confidence_threshold=confidence)
 
 # Inject JS to toggle the dark-theme class on .stApp (st.markdown strips <script>)
@@ -471,18 +472,11 @@ _ZONE_ICONS = {
 
 def _draw_hud(frame: np.ndarray, frame_no: int,
               obj_count: int, inc_count: int) -> np.ndarray:
-    """Overlay a translucent HUD bar at the top of the frame."""
-    h, w = frame.shape[:2]
-    overlay = frame.copy()
-    cv2.rectangle(overlay, (0, 0), (w, 40), (0, 0, 0), -1)
-    frame = cv2.addWeighted(overlay, 0.6, frame, 0.4, 0)
-
-    text = (f"SafeWatch AI | Frame: {frame_no} | "
-            f"Objects: {obj_count} | Incidents: {inc_count}")
-    cv2.putText(frame, text, (10, 28),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (56, 189, 248), 2)
-    cv2.putText(frame, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                (w - 220, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (148, 163, 184), 1)
+    """Overlay a simple HUD text at the top of the frame."""
+    # Simplified HUD - just text, no overlay (much faster)
+    text = f"Frame: {frame_no} | Objects: {obj_count} | Incidents: {inc_count}"
+    cv2.putText(frame, text, (10, 25),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
     return frame
 
 
@@ -497,7 +491,15 @@ def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
 
     frame_count = incident_count = 0
     fps = cap.get_fps()
-    frame_delay = 1.0 / fps if fps > 0 else 0.033  # Delay per frame in seconds
+    target_fps = 25  # Display at 25 FPS for smoother playback
+    frame_delay = 1.0 / target_fps
+    process_interval = 8  # Process every 8th frame for detection (3-4 FPS AI processing)
+
+    # Cache last detection result to annotate skipped frames
+    last_detections = {"persons": [], "vehicles": [], "ppe": {"hardhat": [], "vest": []}}
+    last_display = None  # Cache annotated frame
+    cam_cfg = st.session_state.rule_engine.get_config("camera_1")
+    last_incidents_count = 0
 
     try:
         while st.session_state.monitoring_active:
@@ -512,46 +514,56 @@ def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
             frame_count += 1
             st.session_state.total_frames_processed += 1
 
-            # Process every 3rd frame instead of 6th for faster detection
-            if frame_count % 3 != 0:
-                # Sleep to maintain video playback speed even for skipped frames
-                elapsed = time.time() - frame_start_time
-                sleep_time = frame_delay - elapsed
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
-                continue
-
-            # Detect + check rules
-            detections = st.session_state.detector.detect(frame)
-            try:
-                incidents  = st.session_state.rule_engine.check_incidents(
-                    detections, "camera_1", frame_count, frame=frame
-                )
-            except TypeError as e:
-                # Fallback: try without frame parameter for backwards compatibility
-                logger.warning("Rule engine call with frame failed: %s, retrying without", e)
-                incidents = st.session_state.rule_engine.check_incidents(
-                    detections, "camera_1", frame_count
-                )
-
-            # Annotate frame
-            display = st.session_state.detector.draw_detections(
-                frame, detections, with_ids=True, with_classes=True,
-            )
-            cam_cfg = st.session_state.rule_engine.get_config("camera_1")
-            for zone in cam_cfg.get("restricted_zones", []):
-                pts = zone.get("points", [])
-                if pts:
-                    display = GeometryUtils.draw_polygon(
-                        display, pts, (0, 0, 255), 2, zone.get("name", ""),
+            # Process AI detection only every Nth frame
+            should_process = (frame_count % process_interval == 0)
+            
+            if should_process:
+                # Detect + check rules
+                detections = st.session_state.detector.detect(frame)
+                try:
+                    incidents  = st.session_state.rule_engine.check_incidents(
+                        detections, "camera_1", frame_count, frame=frame
                     )
+                except TypeError as e:
+                    # Fallback: try without frame parameter for backwards compatibility
+                    logger.warning("Rule engine call with frame failed: %s, retrying without", e)
+                    incidents = st.session_state.rule_engine.check_incidents(
+                        detections, "camera_1", frame_count
+                    )
+                
+                # Cache for use in non-processed frames
+                last_detections = detections
+                last_incidents_count = len(incidents)
+            else:
+                # Use cached detections for display
+                detections = last_detections
+                incidents = []
 
-            n_obj = len(detections.get("persons", [])) + len(detections.get("vehicles", []))
-            display = _draw_hud(display, frame_count, n_obj, incident_count)
+            # Annotate frame only when processing AI, otherwise use raw frame
+            if should_process:
+                display = st.session_state.detector.draw_detections(
+                    frame, detections, with_ids=True, with_classes=True,
+                )
+                # Draw zones only when processing AI
+                for zone in cam_cfg.get("restricted_zones", []):
+                    pts = zone.get("points", [])
+                    if pts:
+                        display = GeometryUtils.draw_polygon(
+                            display, pts, (0, 0, 255), 2, zone.get("name", ""),
+                        )
+                n_obj = len(detections.get("persons", [])) + len(detections.get("vehicles", []))
+                display = _draw_hud(display, frame_count, n_obj, incident_count)
+                last_display = display.copy()
+            else:
+                # For skipped frames, just add HUD to raw frame (much faster)
+                n_obj = len(last_detections.get("persons", [])) + len(last_detections.get("vehicles", []))
+                display = _draw_hud(frame, frame_count, n_obj, incident_count)
+            
+            # Convert and display frame
             video_ph.image(cv2.cvtColor(display, cv2.COLOR_BGR2RGB),
-                           use_container_width=True)
+                           width="stretch")
 
-            # Process incidents IMMEDIATELY and display them right away
+            # Process incidents - only update alerts UI occasionally
             if incidents:
                 incident_count += len(incidents)
                 contacts  = cam_cfg.get("alert_contacts", [])
@@ -562,33 +574,34 @@ def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
                         inc["timestamp"] = datetime.now()
                     # Try to dispatch alert
                     dispatched = st.session_state.alert_manager.send_alert(inc, frame, recipient)
-                    # Add to session state even if alert wasn't dispatched (cooldown)
+                    # Add to session state
                     st.session_state.incidents.append(inc)
                     save_incident_to_db(inc)
                     
-                    # Update alerts placeholder in real-time
-                    if alerts_ph:
-                        with alerts_ph.container():
-                            st.markdown('<div class="section-header">🔔 Live Alerts</div>',
-                                        unsafe_allow_html=True)
-                            for incident in reversed(st.session_state.incidents[-5:]):
-                                sev = "critical" if incident.get("severity") == "CRITICAL" else "warning"
-                                ts  = incident.get("timestamp", datetime.now())
-                                ts  = ts.strftime("%H:%M:%S") if hasattr(ts, "strftime") else str(ts)[:19]
-                                st.markdown(render_alert_card(
-                                    incident.get("type", ""), incident.get("details", ""), ts, sev,
-                                ), unsafe_allow_html=True)
+                # Update alerts UI only every 5 incidents to reduce overhead
+                if alerts_ph and incident_count % 5 == 0:
+                    with alerts_ph.container():
+                        st.markdown('<div class="section-header">🔔 Live Alerts</div>',
+                                    unsafe_allow_html=True)
+                        for incident in reversed(st.session_state.incidents[-5:]):
+                            sev = "critical" if incident.get("severity") == "CRITICAL" else "warning"
+                            ts  = incident.get("timestamp", datetime.now())
+                            ts  = ts.strftime("%H:%M:%S") if hasattr(ts, "strftime") else str(ts)[:19]
+                            st.markdown(render_alert_card(
+                                incident.get("type", ""), incident.get("details", ""), ts, sev,
+                            ), unsafe_allow_html=True)
 
-            # Stats bar
-            with stats_ph.container():
-                s1, s2, s3, s4 = st.columns(4)
-                s1.metric("Frames", frame_count)
-                s2.metric("Persons", len(detections.get("persons", [])))
-                s3.metric("Vehicles", len(detections.get("vehicles", [])))
-                delta = f"+{len(incidents)}" if incidents else None
-                s4.metric("Incidents", incident_count, delta=delta, delta_color="inverse")
+            # Update stats every 15 frames to reduce overhead
+            if frame_count % 15 == 0:
+                with stats_ph.container():
+                    s1, s2, s3, s4 = st.columns(4)
+                    s1.metric("Frames", frame_count)
+                    s2.metric("Persons", len(last_detections.get("persons", [])))
+                    s3.metric("Vehicles", len(last_detections.get("vehicles", [])))
+                    delta = f"+{last_incidents_count}" if last_incidents_count > 0 else None
+                    s4.metric("Incidents", incident_count, delta=delta, delta_color="inverse")
 
-            # Sleep to maintain video playback speed
+            # Maintain frame rate
             elapsed = time.time() - frame_start_time
             sleep_time = frame_delay - elapsed
             if sleep_time > 0:

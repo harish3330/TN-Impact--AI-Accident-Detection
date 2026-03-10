@@ -568,6 +568,9 @@ def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
                 incident_count += len(incidents)
                 contacts  = cam_cfg.get("alert_contacts", [])
                 recipient = contacts[0] if contacts else ""
+                # Fall back to DEFAULT_ALERT_EMAIL or sender email
+                if not recipient or recipient == "safety@factory.com":
+                    recipient = os.getenv("DEFAULT_ALERT_EMAIL", "") or os.getenv("ALERT_EMAIL", "")
                 for inc in incidents:
                     # Add timestamp if not already there
                     if "timestamp" not in inc:
@@ -578,8 +581,8 @@ def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
                     st.session_state.incidents.append(inc)
                     save_incident_to_db(inc)
                     
-                # Update alerts UI only every 5 incidents to reduce overhead
-                if alerts_ph and incident_count % 5 == 0:
+                # Update alerts UI immediately
+                if alerts_ph:
                     with alerts_ph.container():
                         st.markdown('<div class="section-header">🔔 Live Alerts</div>',
                                     unsafe_allow_html=True)

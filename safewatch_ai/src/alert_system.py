@@ -3,6 +3,7 @@
 import logging
 import os
 import smtplib
+import threading
 from datetime import datetime
 from email import encoders
 from email.mime.base import MIMEBase
@@ -35,7 +36,7 @@ class AlertManager:
 
         # Cooldown tracking  {alert_key: last_datetime}
         self._last_alert: Dict[str, datetime] = {}
-        self.cooldown_seconds = 30
+        self.cooldown_seconds = 5
         
         # Sound alert setting from config
         if config and "alerts" in config:
@@ -66,7 +67,11 @@ class AlertManager:
         if self.sender_email and self.sender_password:
             to = recipient_email or os.getenv("DEFAULT_ALERT_EMAIL", "")
             if to:
-                self._send_email(incident, snapshot, to)
+                threading.Thread(
+                    target=self._send_email,
+                    args=(incident, snapshot, to),
+                    daemon=True,
+                ).start()
 
         logger.info("Alert dispatched: %s", incident.get("type"))
         return True
@@ -120,30 +125,28 @@ class AlertManager:
     def _beep(self, incident: Dict) -> None:
         if not self.sound_enabled:
             return
-            
+        threading.Thread(
+            target=self._beep_sync,
+            args=(incident,),
+            daemon=True,
+        ).start()
+
+    def _beep_sync(self, incident: Dict) -> None:
         try:
             n = 3 if incident.get("severity") == "CRITICAL" else 1
             freq = 1000 if n == 3 else 800
-            dur = 500 if n == 3 else 300
-            
-            # Try multiple sound methods for better compatibility
+            dur = 300 if n == 3 else 200
             for _ in range(n):
-                # Method 1: Try Windows beep command
                 try:
                     import winsound
                     winsound.Beep(freq, dur)
                 except ImportError:
-                    # Method 2: PowerShell method (original)
-                    os.system(f'powershell.exe -c "[console]::beep({freq},{dur})"')
-                
-                # Small delay between beeps
+                    pass
                 if n > 1:
                     import time
-                    time.sleep(0.1)
-                    
+                    time.sleep(0.05)
         except Exception as e:
             logger.warning(f"Sound alert failed: {e}")
-            pass
 
     def _send_email(self, incident: Dict, snapshot: Optional[Path],
                     recipient: str) -> bool:

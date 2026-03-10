@@ -31,7 +31,7 @@
       "proximity_detection": true,
       "proximity_threshold_px": 150,
       "alert_contacts": [
-        "safety@factory.com"
+        "dharani2006dgl@gmail.com"
       ]
     },
     "camera_2": {
@@ -55,15 +55,15 @@
       "proximity_detection": true,
       "proximity_threshold_px": 150,
       "alert_contacts": [
-        "supervisor@factory.com"
+        "dharani2006dgl@gmail.com"
       ]
     }
   },
   "alerts": {
     "email_enabled": true,
     "sound_enabled": true,
-    "cooldown_seconds": 15,
-    "default_recipient": "safety@factory.com"
+    "cooldown_seconds": 5,
+    "default_recipient": "dharani2006dgl@gmail.com"
   },
   "detection": {
     "model_name": "yolo26n.pt",

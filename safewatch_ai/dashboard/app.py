@@ -1132,23 +1132,88 @@ def page_configuration() -> None:
                                   value=acfg.get("default_recipient", ""), key="recip")
 
         st.markdown("---")
-        st.markdown("**SMTP settings (from .env)**")
-        s1, s2, s3, s4 = st.columns(4)
+        st.markdown("**SMTP Configuration**")
+        st.caption("Configure your email server to send alert emails with incident snapshots.")
+        s1, s2 = st.columns(2)
         with s1:
-            st.text_input("Server", value=os.getenv("SMTP_SERVER", ""), disabled=True)
+            smtp_server = st.text_input("SMTP Server",
+                                        value=os.getenv("SMTP_SERVER", "smtp.gmail.com"),
+                                        key="smtp_srv")
+            sender_email = st.text_input("Sender Email",
+                                         value=os.getenv("ALERT_EMAIL", ""),
+                                         key="smtp_email",
+                                         placeholder="your_email@gmail.com")
         with s2:
-            st.text_input("Port", value=os.getenv("SMTP_PORT", ""), disabled=True)
-        with s3:
-            st.text_input("Sender", value=os.getenv("ALERT_EMAIL", ""), disabled=True)
-        with s4:
-            st.text_input("Password", value="••••••••", disabled=True, type="password")
+            smtp_port = st.text_input("SMTP Port",
+                                      value=os.getenv("SMTP_PORT", "587"),
+                                      key="smtp_port")
+            sender_password = st.text_input("App Password",
+                                            value=os.getenv("ALERT_PASSWORD", ""),
+                                            key="smtp_pass",
+                                            type="password",
+                                            placeholder="Gmail App Password")
+        st.caption("For Gmail: use an [App Password](https://myaccount.google.com/apppasswords), not your regular password.")
 
-        if st.button("💾 Save Alert Settings", key="save_alerts", use_container_width=True):
-            acfg.update({
-                "email_enabled": email_on, "sound_enabled": sound_on,
-                "cooldown_seconds": cd, "default_recipient": recipient,
-            })
-            st.success("Alert settings saved!")
+        col_save, col_test = st.columns(2)
+        with col_save:
+            if st.button("💾 Save Alert Settings", key="save_alerts", use_container_width=True):
+                acfg.update({
+                    "email_enabled": email_on, "sound_enabled": sound_on,
+                    "cooldown_seconds": cd, "default_recipient": recipient,
+                })
+                # Save SMTP settings to .env file
+                env_path = Path(__file__).parent.parent / ".env"
+                env_lines = [
+                    f"SMTP_SERVER={smtp_server}",
+                    f"SMTP_PORT={smtp_port}",
+                    f"ALERT_EMAIL={sender_email}",
+                    f"ALERT_PASSWORD={sender_password}",
+                    f"DEFAULT_ALERT_EMAIL={recipient}",
+                ]
+                env_path.write_text("\n".join(env_lines) + "\n")
+                # Update the running alert manager
+                am = st.session_state.alert_manager
+                am.smtp_server = smtp_server
+                am.smtp_port = int(smtp_port)
+                am.sender_email = sender_email
+                am.sender_password = sender_password
+                am.sound_enabled = sound_on
+                am.cooldown_seconds = cd
+                st.success("Alert settings & SMTP config saved!")
+
+        with col_test:
+            if st.button("📨 Send Test Email", key="test_email", use_container_width=True):
+                test_to = recipient or sender_email
+                if not test_to:
+                    st.error("Enter a recipient email address first.")
+                elif not sender_email or not sender_password:
+                    st.error("Enter SMTP sender email and password first.")
+                else:
+                    # Temporarily apply settings for test
+                    am = st.session_state.alert_manager
+                    am.smtp_server = smtp_server
+                    am.smtp_port = int(smtp_port)
+                    am.sender_email = sender_email
+                    am.sender_password = sender_password
+                    test_incident = {
+                        "type": "TEST_ALERT", "camera_id": "test",
+                        "timestamp": datetime.now(), "severity": "WARNING",
+                        "details": "This is a test alert from SafeWatch AI",
+                        "confidence": 1.0, "track_id": 0,
+                        "bbox": (0, 0, 100, 100),
+                    }
+                    # Create a simple test frame
+                    test_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+                    cv2.putText(test_frame, "SafeWatch AI - Test Alert",
+                                (50, 240), cv2.FONT_HERSHEY_SIMPLEX, 1.0,
+                                (0, 255, 255), 2)
+                    ok = am._send_email(test_incident,
+                                        am._save_snapshot(test_frame, test_incident),
+                                        test_to)
+                    if ok:
+                        st.success(f"Test email sent to {test_to}!")
+                    else:
+                        st.error("Email failed. Check SMTP settings and use a Gmail App Password.")
 
     # --- Tab: Detection ------------------------------------------------------
     with tab_det:

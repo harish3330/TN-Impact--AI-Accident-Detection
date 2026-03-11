@@ -1,30 +1,9 @@
-#!/usr/bin/env python3
-"""
-SafeWatch AI - CLI Entry Point
-
-Command-line interface for the industrial accident detection system.
-Provides an interactive menu for selecting video sources and displays
-real-time detection results in an OpenCV window.
-
-Usage:
-    python main.py
-
-Features:
-- Interactive source selection (webcam, sample videos, custom)
-- Real-time video processing with YOLOv8 detection
-- Live incident detection with sound alerts
-- OpenCV visualization with annotations
-
-For the web dashboard, use: streamlit run dashboard/app.py
-"""
-
 import logging
 import sys
 from pathlib import Path
 
 import cv2
 
-# Ensure project root is on sys.path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.alert_system import AlertManager
@@ -39,8 +18,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ── source selection menu ───────────────────────────────────────────
-
 _SOURCES = {
     "1": ("Webcam", "0"),
     "2": ("Fall Detection Test", "data/sample_videos/test_fall_detection.mp4"),
@@ -52,7 +29,7 @@ _SOURCES = {
 
 def _choose_source() -> str:
     print("\n" + "=" * 50)
-    print("  SafeWatch AI – Industrial Safety Monitor")
+    print("  SafeWatch AI — Industrial Safety Monitor")
     print("=" * 50)
     print("\nVideo source:")
     for k, (label, _) in _SOURCES.items():
@@ -67,17 +44,14 @@ def _choose_source() -> str:
     return "0"
 
 
-# ── main loop ───────────────────────────────────────────────────────
-
 def main() -> None:
-    logger.info("Starting SafeWatch AI …")
+    logger.info("Starting SafeWatch AI")
 
-    # Load config first
     rule_engine = RuleEngine("config/camera_config.json")
     config = rule_engine.get_config()
     detection_config = config.get("detection", {})
     confidence_threshold = detection_config.get("confidence_threshold", 0.5)
-    
+
     model_name = detection_config.get("model_name", "yolo26n.pt")
     detector = SafetyDetector(model_name, confidence_threshold=confidence_threshold)
     alert_manager = AlertManager("data/incidents", config=config)
@@ -108,11 +82,10 @@ def main() -> None:
 
         for inc in incidents:
             incidents_total += 1
-            logger.info("INCIDENT #%d: %s – %s",
+            logger.info("INCIDENT #%d: %s — %s",
                         incidents_total, inc["type"], inc["details"])
             alert_manager.send_alert(inc, frame)
 
-        # Annotate frame
         display = detector.draw_detections(frame, detections)
         for zone in rule_engine.get_config(camera_id).get("restricted_zones", []):
             pts = zone.get("points", [])
@@ -130,7 +103,7 @@ def main() -> None:
 
     capture.release()
     cv2.destroyAllWindows()
-    logger.info("Done – %d frames processed, %d incidents.", proc_n, incidents_total)
+    logger.info("Done — %d frames processed, %d incidents.", proc_n, incidents_total)
 
 
 if __name__ == "__main__":

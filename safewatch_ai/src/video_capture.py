@@ -1,5 +1,3 @@
-"""Video capture abstraction for webcam, RTSP, and file sources."""
-
 import logging
 from typing import Optional
 
@@ -10,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 class VideoCapture:
-    """Thin wrapper around ``cv2.VideoCapture`` with convenience helpers."""
 
     def __init__(self, source: str):
         self.source = source
@@ -22,10 +19,7 @@ class VideoCapture:
         self.current_frame_idx = 0
         self._open()
 
-    # ── lifecycle ───────────────────────────────────────────────────
-
     def _open(self) -> None:
-        """Open the capture device / file."""
         try:
             src = int(self.source)
         except (ValueError, TypeError):
@@ -45,15 +39,11 @@ class VideoCapture:
     def release(self) -> None:
         if self.cap:
             self.cap.release()
-            logger.info("Video capture released")
 
     def __del__(self) -> None:
         self.release()
 
-    # ── frame access ────────────────────────────────────────────────
-
     def get_frame(self) -> Optional[np.ndarray]:
-        """Read the next frame, or ``None`` at end-of-stream."""
         if self.cap is None:
             return None
         ok, frame = self.cap.read()

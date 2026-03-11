@@ -1,25 +1,6 @@
-"""
-SafeWatch AI — Dual Theme (Light / Dark)
-==========================================
-CSS-variable-driven theming. The *light* theme is the default;
-adding the class ``dark-theme`` to ``.stApp`` activates the dark variant.
-All component renderers and JS helpers are theme-aware.
-"""
-
-# ═══════════════════════════════════════════════════════════════════════════
-# CSS
-# ═══════════════════════════════════════════════════════════════════════════
-
 def get_custom_css(theme: str = "light") -> str:
-    """Return CSS + webfont imports.  *theme* = ``'light'`` | ``'dark'``.
-
-    The CSS defines design tokens in ``:root`` (light) and overrides them
-    when ``.stApp`` has the ``dark-theme`` class.  All widgets reference
-    ``var(--…)`` tokens so they adapt automatically.
-    """
     theme_class = 'class="dark-theme"' if theme == "dark" else ''
     return """
-    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -27,9 +8,6 @@ def get_custom_css(theme: str = "light") -> str:
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
 
     <style>
-    /* ============================================================
-       LIGHT THEME TOKENS (default)
-       ============================================================ */
     :root {
         --bg-base:       #F8FAFC;
         --bg-gradient:   linear-gradient(135deg, #F8FAFC 0%, #EEF2FF 50%, #F0F9FF 100%);
@@ -53,7 +31,6 @@ def get_custom_css(theme: str = "light") -> str:
         --radius-lg:     1rem;
         --blur:          20px;
         --transition:    all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        /* decorative */
         --grid-color:    rgba(37,99,235,0.025);
         --radial-a:      rgba(37,99,235,0.04);
         --radial-b:      rgba(6,182,212,0.04);
@@ -80,9 +57,6 @@ def get_custom_css(theme: str = "light") -> str:
         --chart-zero:    rgba(37,99,235,0.10);
     }
 
-    /* ============================================================
-       DARK THEME TOKENS (activated by .dark-theme on .stApp)
-       ============================================================ */
     .stApp.dark-theme,
     .dark-theme {
         --bg-base:       #0B1120;
@@ -129,7 +103,6 @@ def get_custom_css(theme: str = "light") -> str:
         --chart-zero:    rgba(0,245,255,0.10);
     }
 
-    /* ===== GLOBAL RESET ===== */
     .stApp,
     .main,
     [data-testid="stAppViewContainer"],
@@ -139,7 +112,6 @@ def get_custom_css(theme: str = "light") -> str:
         color: var(--text-primary) !important;
     }
 
-    /* Animated subtle gradient BG */
     .stApp::before {
         content: '';
         position: fixed;
@@ -157,7 +129,6 @@ def get_custom_css(theme: str = "light") -> str:
         100% { opacity: 1;   transform: scale(1.03); }
     }
 
-    /* Grid overlay */
     .stApp::after {
         content: '';
         position: fixed;
@@ -170,7 +141,6 @@ def get_custom_css(theme: str = "light") -> str:
         pointer-events: none;
     }
 
-    /* Ensure content above overlays */
     [data-testid="stAppViewContainer"],
     [data-testid="stHeader"],
     [data-testid="stSidebar"],
@@ -187,7 +157,6 @@ def get_custom_css(theme: str = "light") -> str:
         z-index: 1;
     }
 
-    /* Fade-in */
     .main .block-container > div {
         animation: fadeInUp 0.55s ease both;
     }
@@ -196,13 +165,11 @@ def get_custom_css(theme: str = "light") -> str:
         to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* ===== SCROLLBAR ===== */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
     ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
 
-    /* ===== SIDEBAR ===== */
     [data-testid="stSidebar"] {
         background: var(--sidebar-bg) !important;
         border-right: 1px solid var(--sidebar-border) !important;
@@ -221,7 +188,6 @@ def get_custom_css(theme: str = "light") -> str:
         background: linear-gradient(90deg, var(--primary), var(--cyan), var(--primary));
     }
 
-    /* Sidebar text */
     [data-testid="stSidebar"] p,
     [data-testid="stSidebar"] span,
     [data-testid="stSidebar"] label,
@@ -230,7 +196,6 @@ def get_custom_css(theme: str = "light") -> str:
         color: var(--text-primary) !important;
     }
 
-    /* NAV RADIO BUTTONS */
     [data-testid="stSidebar"] .stRadio > div { gap: 0.3rem; }
     [data-testid="stSidebar"] .stRadio label {
         color: var(--text-primary) !important;
@@ -270,7 +235,6 @@ def get_custom_css(theme: str = "light") -> str:
         box-shadow: 0 2px 8px rgba(0,245,255,0.12);
     }
 
-    /* Selected nav */
     [data-testid="stSidebar"] .stRadio input:checked + label {
         background: var(--tab-active-bg) !important;
         border-color: var(--primary) !important;
@@ -299,7 +263,6 @@ def get_custom_css(theme: str = "light") -> str:
 
     [data-testid="stSidebar"]::-webkit-scrollbar-thumb { background: var(--primary); }
 
-    /* Sidebar collapse */
     [data-testid="stSidebar"][aria-expanded="false"],
     section[data-testid="stSidebar"][aria-hidden="true"] {
         width: 0 !important; min-width: 0 !important; display: none !important;
@@ -308,7 +271,6 @@ def get_custom_css(theme: str = "light") -> str:
         transition: margin-left 0.3s ease, max-width 0.3s ease !important;
     }
 
-    /* ===== HEALTH INDICATORS ===== */
     .health-indicator {
         display: flex;
         align-items: center;
@@ -349,7 +311,6 @@ def get_custom_css(theme: str = "light") -> str:
         50%      { opacity: 0.55; transform: scale(0.85); }
     }
 
-    /* ===== GLASS CARD ===== */
     .glass {
         background: var(--bg-card);
         backdrop-filter: blur(var(--blur));
@@ -365,7 +326,6 @@ def get_custom_css(theme: str = "light") -> str:
         transform: translateY(-2px);
     }
 
-    /* ===== HEADER BANNER ===== */
     .header-banner {
         background: var(--bg-card);
         backdrop-filter: blur(var(--blur));
@@ -407,7 +367,6 @@ def get_custom_css(theme: str = "light") -> str:
         margin: 0;
     }
 
-    /* ===== KPI CARDS ===== */
     .kpi-card {
         background: var(--bg-card);
         backdrop-filter: blur(var(--blur));
@@ -459,7 +418,6 @@ def get_custom_css(theme: str = "light") -> str:
         margin-top: 0.3rem;
     }
 
-    /* KPI severity */
     .kpi-info::before    { background: var(--primary); }
     .kpi-critical::before { background: var(--red); }
     .kpi-critical { border-color: rgba(220,38,38,0.18); }
@@ -475,7 +433,6 @@ def get_custom_css(theme: str = "light") -> str:
         50%      { box-shadow: 0 4px 20px rgba(220,38,38,0.18); }
     }
 
-    /* ===== SECTION HEADERS ===== */
     .section-header {
         font-family: var(--font-display);
         font-size: 0.9rem;
@@ -490,7 +447,6 @@ def get_custom_css(theme: str = "light") -> str:
         letter-spacing: 0.3px;
     }
 
-    /* ===== DETECTION CARDS ===== */
     .detection-card {
         background: var(--bg-card);
         backdrop-filter: blur(var(--blur));
@@ -540,7 +496,6 @@ def get_custom_css(theme: str = "light") -> str:
         font-size: 0.72rem; color: var(--text-secondary); line-height: 1.4; margin: 0;
     }
 
-    /* ===== ALERT CARDS ===== */
     .alert-card {
         background: var(--bg-card);
         backdrop-filter: blur(var(--blur));
@@ -582,7 +537,6 @@ def get_custom_css(theme: str = "light") -> str:
         font-family: var(--font-body); font-weight: 500;
     }
 
-    /* ===== STATUS BADGES ===== */
     .status-badge {
         display: inline-flex; align-items: center; gap: 0.35rem;
         padding: 0.35rem 0.8rem; border-radius: 2rem;
@@ -601,7 +555,6 @@ def get_custom_css(theme: str = "light") -> str:
         border: 1px solid rgba(148,163,184,0.2);
     }
 
-    /* ===== FEATURE BOXES ===== */
     .feature-box {
         background: var(--bg-card);
         backdrop-filter: blur(var(--blur));
@@ -633,7 +586,6 @@ def get_custom_css(theme: str = "light") -> str:
         font-size: 0.62rem; color: var(--text-muted); line-height: 1.2;
     }
 
-    /* ===== BUTTONS ===== */
     .stButton > button {
         background: linear-gradient(135deg, var(--primary), var(--primary-light)) !important;
         color: #FFFFFF !important;
@@ -658,7 +610,6 @@ def get_custom_css(theme: str = "light") -> str:
     }
     .stButton > button:active { transform: scale(0.98) !important; }
 
-    /* ===== INPUTS ===== */
     .stTextInput > div > div > input,
     .stNumberInput > div > div > input {
         background: var(--input-bg) !important;
@@ -682,7 +633,6 @@ def get_custom_css(theme: str = "light") -> str:
         color: var(--text-primary) !important;
     }
 
-    /* Tabs */
     .stTabs [data-baseweb="tab-list"] { gap: 0.3rem; background: transparent; }
     .stTabs [data-baseweb="tab"] {
         background: var(--tab-bg) !important;
@@ -704,19 +654,16 @@ def get_custom_css(theme: str = "light") -> str:
         box-shadow: 0 2px 8px rgba(37,99,235,0.1) !important;
     }
 
-    /* Slider */
     .stSlider [data-baseweb="slider"] [role="slider"] {
         background: var(--primary) !important;
         box-shadow: 0 0 6px rgba(37,99,235,0.3) !important;
     }
     .stSlider [data-testid="stTickBar"] > div { background: var(--primary) !important; }
 
-    /* Toggle */
     .stToggle label span[data-testid="stWidgetLabel"] {
         color: var(--text-primary) !important;
     }
 
-    /* Metric */
     .stMetric {
         background: var(--bg-card) !important;
         backdrop-filter: blur(var(--blur)) !important;
@@ -732,7 +679,6 @@ def get_custom_css(theme: str = "light") -> str:
         font-weight: 700 !important;
     }
 
-    /* Expander */
     .streamlit-expanderHeader {
         background: var(--tab-bg) !important;
         color: var(--text-primary) !important;
@@ -740,7 +686,6 @@ def get_custom_css(theme: str = "light") -> str:
         border-radius: var(--radius) !important;
     }
 
-    /* Dataframe */
     .dataframe {
         border-radius: var(--radius); overflow: hidden;
         border: 1px solid var(--glass-border);
@@ -763,7 +708,6 @@ def get_custom_css(theme: str = "light") -> str:
     }
     .dataframe tr:hover td { background: var(--table-hover); }
 
-    /* ===== LIVE TAG ===== */
     .live-tag {
         display: inline-flex; align-items: center; gap: 0.4rem;
         background: rgba(220,38,38,0.08);
@@ -788,7 +732,6 @@ def get_custom_css(theme: str = "light") -> str:
         50%      { opacity: 0.6; }
     }
 
-    /* ===== SCAN LINE ===== */
     .scan-container { position: relative; overflow: hidden; border-radius: var(--radius); }
     .scan-line {
         position: absolute; left: 0; right: 0; height: 2px;
@@ -806,7 +749,6 @@ def get_custom_css(theme: str = "light") -> str:
         100% { top: 100%; }
     }
 
-    /* ===== THEME TOGGLE ===== */
     .theme-toggle-wrapper {
         display: flex;
         align-items: center;
@@ -819,13 +761,11 @@ def get_custom_css(theme: str = "light") -> str:
         font-weight: 600;
     }
 
-    /* ===== RESPONSIVE ===== */
     @media (max-width: 768px) {
         .header-banner h1 { font-size: 1.2rem; }
         .kpi-card { height: 110px; }
     }
 
-    /* ===== REMOVE STREAMLIT DEFAULTS ===== */
     [data-testid="stHeader"] { background: transparent !important; }
     .css-1d391kg, .css-12oz5g7 { background: transparent !important; }
     footer { display: none !important; }
@@ -834,29 +774,23 @@ def get_custom_css(theme: str = "light") -> str:
     """
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# HTML COMPONENT RENDERERS
-# ═══════════════════════════════════════════════════════════════════════════
-
 def render_kpi_card(icon: str, value, label: str, color_class: str = "kpi-info") -> str:
     extra = " glow-pulse" if color_class == "kpi-critical" and str(value) not in ("0", "") else ""
-    return f"""
-    <div class="kpi-card {color_class}{extra}">
-        <div class="kpi-icon">{icon}</div>
-        <div class="kpi-value">{value}</div>
-        <div class="kpi-label">{label}</div>
-    </div>
-    """
+    return (
+        f'<div class="kpi-card {color_class}{extra}">'
+        f'<div class="kpi-icon">{icon}</div>'
+        f'<div class="kpi-value">{value}</div>'
+        f'<div class="kpi-label">{label}</div></div>'
+    )
 
 
 def render_alert_card(alert_type: str, detail: str, time_str: str, severity: str = "warning") -> str:
-    return f"""
-    <div class="alert-card {severity}">
-        <div class="alert-title">{alert_type}</div>
-        <div class="alert-detail">{detail}</div>
-        <div class="alert-time">{time_str}</div>
-    </div>
-    """
+    return (
+        f'<div class="alert-card {severity}">'
+        f'<div class="alert-title">{alert_type}</div>'
+        f'<div class="alert-detail">{detail}</div>'
+        f'<div class="alert-time">{time_str}</div></div>'
+    )
 
 
 def render_detection_card(icon: str, title: str, description: str, is_active: bool = True) -> str:
@@ -867,37 +801,28 @@ def render_detection_card(icon: str, title: str, description: str, is_active: bo
              else '<span style="background:rgba(148,163,184,0.10);color:var(--text-muted);'
                   'padding:2px 8px;border-radius:10px;font-size:0.65rem;font-weight:700;'
                   'margin-left:0.5rem;">INACTIVE</span>')
-    return f"""
-    <div class="detection-card">
-        <div class="det-header">
-            <span class="det-icon">{icon}</span>
-            <div style="flex:1;">
-                <div style="display:flex;align-items:center;">
-                    <span class="det-title">{title}</span>{badge}
-                </div>
-            </div>
-        </div>
-        <div class="det-desc">{description}</div>
-    </div>
-    """
+    return (
+        f'<div class="detection-card">'
+        f'<div class="det-header">'
+        f'<span class="det-icon">{icon}</span>'
+        f'<div style="flex:1;">'
+        f'<div style="display:flex;align-items:center;">'
+        f'<span class="det-title">{title}</span>{badge}'
+        f'</div></div></div>'
+        f'<div class="det-desc">{description}</div></div>'
+    )
 
 
 def render_feature_box(icon: str, title: str, description: str) -> str:
-    return f"""
-    <div class="feature-box">
-        <div class="feat-icon">{icon}</div>
-        <div class="feat-title">{title}</div>
-        <div class="feat-desc">{description}</div>
-    </div>
-    """
+    return (
+        f'<div class="feature-box">'
+        f'<div class="feat-icon">{icon}</div>'
+        f'<div class="feat-title">{title}</div>'
+        f'<div class="feat-desc">{description}</div></div>'
+    )
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# JS / ANIMATION HELPERS  (theme-aware)
-# ═══════════════════════════════════════════════════════════════════════════
 
 def get_particle_canvas_html(theme: str = "light") -> str:
-    """Floating particle canvas — adapts colour to theme."""
     dot = "rgba(37,99,235,0.22)" if theme == "light" else "rgba(0,245,255,0.28)"
     line_base = "37,99,235" if theme == "light" else "0,245,255"
     return f"""
@@ -1067,7 +992,6 @@ def get_count_up_js(element_id: str, end_val: int, duration_ms: int = 1200) -> s
 
 
 def get_plotly_theme_template(theme: str = "light") -> dict:
-    """Return Plotly layout dict matching the current theme."""
     if theme == "dark":
         return dict(
             template="plotly_dark",
@@ -1094,7 +1018,6 @@ def get_plotly_theme_template(theme: str = "light") -> dict:
 
 
 def get_theme_colors(theme: str = "light") -> dict:
-    """Return the colour palette dict used for inline styles and charts."""
     if theme == "dark":
         return dict(
             primary="#00F5FF", cyan="#00F5FF", green="#00FF88",
@@ -1102,7 +1025,7 @@ def get_theme_colors(theme: str = "light") -> dict:
             text="#E2E8F0", text2="#94A3B8", muted="#64748B",
             bg_card="rgba(11,17,32,0.8)", border="rgba(0,245,255,0.15)",
             bar_bg="rgba(255,255,255,0.08)",
-            bar_grad=("linear-gradient(90deg,#00F5FF,#3B82F6)"),
+            bar_grad="linear-gradient(90deg,#00F5FF,#3B82F6)",
             font_display="'Orbitron'", font_body="'Rajdhani'",
         )
     return dict(
@@ -1117,19 +1040,14 @@ def get_theme_colors(theme: str = "light") -> dict:
 
 
 def get_logo_html(theme: str = "light") -> str:
-    """Return an SVG logo using theme colors (Google-style multi-color letters)."""
     tc = get_theme_colors(theme)
-    # Colors: S=cyan, a=primary, f=green, e=orange, W=red, a=cyan, t=primary, c=green, h=orange
     return f'''
     <div style="display:flex; justify-content:center; align-items:center; padding: 12px 0 8px 0;">
         <svg width="240" height="50" viewBox="0 0 240 50" xmlns="http://www.w3.org/2000/svg">
-            <!-- Shield icon -->
-            <path d="M25 5 L40 10 L40 25 C40 35 32 42 25 45 C18 42 10 35 10 25 L10 10 Z" 
+            <path d="M25 5 L40 10 L40 25 C40 35 32 42 25 45 C18 42 10 35 10 25 L10 10 Z"
                   fill="none" stroke="{tc['cyan']}" stroke-width="2.5"/>
-            <path d="M20 25 L24 29 L32 19" 
+            <path d="M20 25 L24 29 L32 19"
                   fill="none" stroke="{tc['green']}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            
-            <!-- SafeWatch text with multi-color letters -->
             <text x="50" y="35" font-family="{tc['font_display']}, sans-serif" font-weight="700" font-size="28">
                 <tspan fill="{tc['cyan']}">S</tspan><tspan fill="{tc['primary']}">a</tspan><tspan fill="{tc['green']}">f</tspan><tspan fill="{tc['orange']}">e</tspan><tspan fill="{tc['red']}">W</tspan><tspan fill="{tc['cyan']}">a</tspan><tspan fill="{tc['primary']}">t</tspan><tspan fill="{tc['green']}">c</tspan><tspan fill="{tc['orange']}">h</tspan>
             </text>

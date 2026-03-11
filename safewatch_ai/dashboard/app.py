@@ -1,10 +1,3 @@
-"""
-SafeWatch AI — Streamlit Dashboard
-===================================
-Main entry point for the industrial safety monitoring dashboard.
-Provides five pages: Overview, Live Monitor, Incident Log, Analytics, Configuration.
-"""
-
 import cv2
 import streamlit as st
 import streamlit.components.v1 as components
@@ -20,12 +13,8 @@ import os
 import time
 import logging
 
-# ---------------------------------------------------------------------------
-# Path setup — allow imports from project root
-# ---------------------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -45,9 +34,6 @@ from dashboard.components.enhanced_bootstrap_styles import (
     get_plotly_theme_template, get_theme_colors, get_logo_html,
 )
 
-# ---------------------------------------------------------------------------
-# Streamlit page config (must be first Streamlit call)
-# ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="SafeWatch AI — Control Center",
     page_icon="🛡️",
@@ -55,9 +41,8 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Theme — persisted in session state
 if "theme" not in st.session_state:
-    st.session_state.theme = "dark"   # default theme
+    st.session_state.theme = "dark"
 
 _THEME = st.session_state.theme
 st.markdown(get_custom_css(theme=_THEME), unsafe_allow_html=True)
@@ -67,11 +52,10 @@ def _create_detector_from_config() -> SafetyDetector:
     cfg = RuleEngine("config/camera_config.json").get_config()
     det_cfg = cfg.get("detection", {})
     model_name = det_cfg.get("model_name", "yolo26n.pt")
-    # Use lower confidence for faster inference
     confidence = det_cfg.get("confidence_threshold", 0.4)
     return SafetyDetector(model_name=model_name, confidence_threshold=confidence)
 
-# Inject JS to toggle the dark-theme class on .stApp (st.markdown strips <script>)
+
 _theme_js = f"""
 <script>
 (function(){{
@@ -87,13 +71,8 @@ _theme_js = f"""
 </script>
 """
 components.html(_theme_js, height=0)
-
-# Inject particle background
 components.html(get_particle_canvas_html(theme=_THEME), height=0)
 
-# ---------------------------------------------------------------------------
-# Session state initialisation
-# ---------------------------------------------------------------------------
 _DEFAULTS = {
     "detector":              _create_detector_from_config,
     "rule_engine":           lambda: RuleEngine("config/camera_config.json"),
@@ -104,7 +83,6 @@ _DEFAULTS = {
     "session_start":         lambda: datetime.now(),
 }
 
-# Clear cached rule_engine to force reload with updated signature
 if "rule_engine" in st.session_state:
     del st.session_state["rule_engine"]
 
@@ -112,20 +90,14 @@ for _key, _factory in _DEFAULTS.items():
     if _key not in st.session_state:
         st.session_state[_key] = _factory()
 
-# Convenience: re-read theme after session-state init
 _THEME = st.session_state.theme
 _TC = get_theme_colors(_THEME)
 
-
-# ╔═════════════════════════════════════════════════════════════════════════╗
-# ║  DATABASE HELPERS                                                      ║
-# ╚═════════════════════════════════════════════════════════════════════════╝
 
 DB_PATH = Path("data/incidents/safewatch_ai.db")
 
 
 def get_db_connection() -> sqlite3.Connection:
-    """Return an SQLite connection, creating the table if needed."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     conn.execute(
@@ -147,7 +119,6 @@ def get_db_connection() -> sqlite3.Connection:
 
 
 def save_incident_to_db(incident: dict, snapshot_path: str = "") -> None:
-    """Insert a single incident row into the database."""
     try:
         conn = get_db_connection()
         conn.execute(
@@ -167,11 +138,10 @@ def save_incident_to_db(incident: dict, snapshot_path: str = "") -> None:
         conn.commit()
         conn.close()
     except Exception:
-        pass  # non-critical; don't break the monitoring loop
+        pass
 
 
 def get_incident_stats() -> dict:
-    """Aggregate incident statistics for dashboard KPIs."""
     empty = {
         "total": 0, "critical": 0, "warnings": 0,
         "today": 0, "by_type": {}, "recent": pd.DataFrame(),
@@ -201,14 +171,8 @@ def get_incident_stats() -> dict:
         return empty
 
 
-# ╔═════════════════════════════════════════════════════════════════════════╗
-# ║  SIDEBAR                                                               ║
-# ╚═════════════════════════════════════════════════════════════════════════╝
-
 def render_sidebar() -> str:
-    """Draw the futuristic sidebar and return the selected page name."""
     with st.sidebar:
-        # ── Theme toggle ────────────────────────────────────────────
         is_light = st.toggle(
             "☀️ Light Mode",
             value=(st.session_state.theme == "light"),
@@ -219,7 +183,6 @@ def render_sidebar() -> str:
             st.session_state.theme = new_theme
             st.rerun()
 
-        # Branding
         st.markdown(
             '<div style="text-align:center; padding:0.5rem 0 0.2rem 0;">'
             '<div style="font-size:2.5rem;">🛡️</div>'
@@ -248,7 +211,6 @@ def render_sidebar() -> str:
 
         st.markdown("---")
 
-        # System health indicators
         mon_colour = "green" if st.session_state.monitoring_active else "yellow"
         mon_label  = "Monitoring Active" if st.session_state.monitoring_active else "Monitoring Idle"
         st.markdown(
@@ -262,12 +224,11 @@ def render_sidebar() -> str:
 
         st.markdown("---")
 
-        # Session telemetry
         uptime = datetime.now() - st.session_state.session_start
         h, rem = divmod(int(uptime.total_seconds()), 3600)
         m, s   = divmod(rem, 60)
         st.markdown(
-            f'<div style="font-family:\'{_TC["font_body"]}\',sans-serif;font-size:0.78rem; color:{_TC["muted"]};">' 
+            f'<div style="font-family:\'{_TC["font_body"]}\',sans-serif;font-size:0.78rem; color:{_TC["muted"]};">'
             f'<div>📅 {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>'
             f'<div>⏱️ Uptime: {h:02d}:{m:02d}:{s:02d}</div>'
             f'<div>🖥️ Frames: {st.session_state.total_frames_processed}</div></div>',
@@ -276,7 +237,7 @@ def render_sidebar() -> str:
 
         st.markdown("---")
         st.markdown(
-            f'<div style="text-align:center; font-size:0.65rem; color:{_TC["text2"]};">' 
+            f'<div style="text-align:center; font-size:0.65rem; color:{_TC["text2"]};">'
             'Built for TN-IMPACT Hackathon<br>'
             f'<span style="color:{_TC["primary"]};">Powered by YOLOv8 + OpenCV</span></div>',
             unsafe_allow_html=True,
@@ -285,16 +246,8 @@ def render_sidebar() -> str:
     return page
 
 
-# ╔═════════════════════════════════════════════════════════════════════════╗
-# ║  PAGE: OVERVIEW                                                        ║
-# ╚═════════════════════════════════════════════════════════════════════════╝
-
 def page_overview() -> None:
-    """Dashboard home — KPIs, detection capabilities, recent alerts."""
-    # Logo at top center
     components.html(get_logo_html(theme=_THEME), height=70)
-
-    # Typing hero + clock
     components.html(get_typing_effect_html(
         "Real-time AI-powered Industrial Accident Detection & Prevention",
         theme=_THEME), height=50)
@@ -308,12 +261,10 @@ def page_overview() -> None:
         unsafe_allow_html=True,
     )
 
-    # AI status badge
     components.html(get_ai_status_badge_html(theme=_THEME), height=32)
 
     stats = get_incident_stats()
 
-    # KPI cards
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(render_kpi_card("🛡️", stats["total"], "Total Incidents", "kpi-info"),
@@ -341,7 +292,6 @@ def page_overview() -> None:
     col_left, col_right = st.columns([2, 1])
 
     with col_left:
-        # Detection capability cards
         st.markdown('<div class="section-header">🎯 DETECTION CAPABILITIES</div>',
                     unsafe_allow_html=True)
         c1, c2 = st.columns(2)
@@ -374,7 +324,6 @@ def page_overview() -> None:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Feature highlights
         st.markdown('<div class="section-header">⚡ KEY FEATURES</div>',
                     unsafe_allow_html=True)
         f1, f2, f3, f4 = st.columns(4)
@@ -392,7 +341,6 @@ def page_overview() -> None:
                         unsafe_allow_html=True)
 
     with col_right:
-        # Recent alerts feed
         st.markdown('<div class="section-header">🔔 RECENT ALERTS</div>',
                     unsafe_allow_html=True)
         if not stats["recent"].empty:
@@ -405,7 +353,7 @@ def page_overview() -> None:
                 ), unsafe_allow_html=True)
         else:
             st.markdown(
-                f'<div style="text-align:center; padding:2rem; color:{_TC["muted"]};">' 
+                f'<div style="text-align:center; padding:2rem; color:{_TC["muted"]};">'
                 f'<div style="font-size:2rem;">🎯</div>'
                 f'<div style="color:{_TC["text2"]};">No incidents recorded yet</div>'
                 f'<div style="font-size:0.75rem;color:{_TC["muted"]};">Start monitoring to detect safety events</div></div>',
@@ -414,7 +362,6 @@ def page_overview() -> None:
 
         st.markdown("---")
 
-        # Breakdown progress bars
         if stats["by_type"]:
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown('<div class="section-header">📈 INCIDENT BREAKDOWN</div>',
@@ -446,11 +393,7 @@ def page_overview() -> None:
                 )
 
 
-# ╔═════════════════════════════════════════════════════════════════════════╗
-# ║  PAGE: LIVE MONITOR                                                    ║
-# ╚═════════════════════════════════════════════════════════════════════════╝
-
-_PROJECT_ROOT = Path(__file__).parent.parent  # safewatch_ai/
+_PROJECT_ROOT = Path(__file__).parent.parent
 
 _SOURCE_MAP = {
     "Webcam (0)":                     "0",
@@ -472,8 +415,6 @@ _ZONE_ICONS = {
 
 def _draw_hud(frame: np.ndarray, frame_no: int,
               obj_count: int, inc_count: int) -> np.ndarray:
-    """Overlay a simple HUD text at the top of the frame."""
-    # Simplified HUD - just text, no overlay (much faster)
     text = f"Frame: {frame_no} | Objects: {obj_count} | Incidents: {inc_count}"
     cv2.putText(frame, text, (10, 25),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
@@ -481,7 +422,6 @@ def _draw_hud(frame: np.ndarray, frame_no: int,
 
 
 def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
-    """Core loop: capture → detect → annotate → alert."""
     try:
         cap = VideoCapture(source)
     except Exception as e:
@@ -491,20 +431,19 @@ def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
 
     frame_count = incident_count = 0
     fps = cap.get_fps()
-    target_fps = 25  # Display at 25 FPS for smoother playback
+    target_fps = 25
     frame_delay = 1.0 / target_fps
-    process_interval = 8  # Process every 8th frame for detection (3-4 FPS AI processing)
+    process_interval = 8
 
-    # Cache last detection result to annotate skipped frames
     last_detections = {"persons": [], "vehicles": [], "ppe": {"hardhat": [], "vest": []}}
-    last_display = None  # Cache annotated frame
+    last_display = None
     cam_cfg = st.session_state.rule_engine.get_config("camera_1")
     last_incidents_count = 0
 
     try:
         while st.session_state.monitoring_active:
             frame_start_time = time.time()
-            
+
             frame = cap.get_frame()
             if frame is None:
                 st.info("📼 End of video stream")
@@ -514,37 +453,30 @@ def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
             frame_count += 1
             st.session_state.total_frames_processed += 1
 
-            # Process AI detection only every Nth frame
             should_process = (frame_count % process_interval == 0)
-            
+
             if should_process:
-                # Detect + check rules
                 detections = st.session_state.detector.detect(frame)
                 try:
-                    incidents  = st.session_state.rule_engine.check_incidents(
+                    incidents = st.session_state.rule_engine.check_incidents(
                         detections, "camera_1", frame_count, frame=frame
                     )
                 except TypeError as e:
-                    # Fallback: try without frame parameter for backwards compatibility
                     logger.warning("Rule engine call with frame failed: %s, retrying without", e)
                     incidents = st.session_state.rule_engine.check_incidents(
                         detections, "camera_1", frame_count
                     )
-                
-                # Cache for use in non-processed frames
+
                 last_detections = detections
                 last_incidents_count = len(incidents)
             else:
-                # Use cached detections for display
                 detections = last_detections
                 incidents = []
 
-            # Annotate frame only when processing AI, otherwise use raw frame
             if should_process:
                 display = st.session_state.detector.draw_detections(
                     frame, detections, with_ids=True, with_classes=True,
                 )
-                # Draw zones only when processing AI
                 for zone in cam_cfg.get("restricted_zones", []):
                     pts = zone.get("points", [])
                     if pts:
@@ -555,33 +487,25 @@ def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
                 display = _draw_hud(display, frame_count, n_obj, incident_count)
                 last_display = display.copy()
             else:
-                # For skipped frames, just add HUD to raw frame (much faster)
                 n_obj = len(last_detections.get("persons", [])) + len(last_detections.get("vehicles", []))
                 display = _draw_hud(frame, frame_count, n_obj, incident_count)
-            
-            # Convert and display frame
+
             video_ph.image(cv2.cvtColor(display, cv2.COLOR_BGR2RGB),
                            width="stretch")
 
-            # Process incidents - only update alerts UI occasionally
             if incidents:
                 incident_count += len(incidents)
                 contacts  = cam_cfg.get("alert_contacts", [])
                 recipient = contacts[0] if contacts else ""
-                # Fall back to DEFAULT_ALERT_EMAIL or sender email
                 if not recipient or recipient == "safety@factory.com":
                     recipient = os.getenv("DEFAULT_ALERT_EMAIL", "") or os.getenv("ALERT_EMAIL", "")
                 for inc in incidents:
-                    # Add timestamp if not already there
                     if "timestamp" not in inc:
                         inc["timestamp"] = datetime.now()
-                    # Try to dispatch alert
                     dispatched = st.session_state.alert_manager.send_alert(inc, frame, recipient)
-                    # Add to session state
                     st.session_state.incidents.append(inc)
                     save_incident_to_db(inc)
-                    
-                # Update alerts UI immediately
+
                 if alerts_ph:
                     with alerts_ph.container():
                         st.markdown('<div class="section-header">🔔 Live Alerts</div>',
@@ -594,7 +518,6 @@ def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
                                 incident.get("type", ""), incident.get("details", ""), ts, sev,
                             ), unsafe_allow_html=True)
 
-            # Update stats every 15 frames to reduce overhead
             if frame_count % 15 == 0:
                 with stats_ph.container():
                     s1, s2, s3, s4 = st.columns(4)
@@ -604,7 +527,6 @@ def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
                     delta = f"+{last_incidents_count}" if last_incidents_count > 0 else None
                     s4.metric("Incidents", incident_count, delta=delta, delta_color="inverse")
 
-            # Maintain frame rate
             elapsed = time.time() - frame_start_time
             sleep_time = frame_delay - elapsed
             if sleep_time > 0:
@@ -619,8 +541,6 @@ def _monitoring_loop(source: str, video_ph, stats_ph, alerts_ph=None) -> None:
 
 
 def page_live_monitor() -> None:
-    """Real-time video feed with AI detection overlay."""
-    # Logo at top center
     components.html(get_logo_html(theme=_THEME), height=70)
 
     st.markdown(
@@ -633,12 +553,10 @@ def page_live_monitor() -> None:
     col_main, col_side = st.columns([3, 1])
 
     with col_side:
-        # Live alerts sidebar - create placeholder early
         alerts_ph = st.empty()
         alerts_ph_initialized = False
 
     with col_main:
-        # Source selector
         s1, s2 = st.columns([2, 1])
         with s1:
             video_src = st.selectbox(
@@ -653,7 +571,6 @@ def page_live_monitor() -> None:
             else:
                 source = _SOURCE_MAP.get(video_src, "0")
 
-        # Controls
         b1, b2, b3 = st.columns([1, 1, 2])
         with b1:
             start = st.button("▶️ Start", key="start_mon", use_container_width=True)
@@ -685,7 +602,7 @@ def page_live_monitor() -> None:
                 f'border-radius:12px;padding:4rem 2rem;text-align:center;'
                 f'border:1px solid {_bdr};'
                 f'backdrop-filter:blur(16px);position:relative;overflow:hidden;'
-                f'box-shadow:0 4px 24px {_shd};">' 
+                f'box-shadow:0 4px 24px {_shd};">'
                 '<div class="scan-line"></div>'
                 '<div style="font-size:3rem;margin-bottom:1rem;">🎥</div>'
                 f'<div style="color:{_TC["text"]};font-size:1.1rem;font-weight:600;'
@@ -697,13 +614,12 @@ def page_live_monitor() -> None:
             )
 
     with col_side:
-        # Initialize alerts display
         if not alerts_ph_initialized:
             with alerts_ph.container():
                 st.markdown('<div class="section-header">🔔 Live Alerts</div>',
                             unsafe_allow_html=True)
                 st.markdown(
-                    f'<div style="text-align:center;padding:2rem;color:{_TC["muted"]};">' 
+                    f'<div style="text-align:center;padding:2rem;color:{_TC["muted"]};">'
                     f'<div style="font-size:2rem;">🔇</div>'
                     f'<div style="font-size:0.85rem;">No alerts yet</div></div>',
                     unsafe_allow_html=True,
@@ -711,7 +627,6 @@ def page_live_monitor() -> None:
 
         st.markdown("---")
 
-        # Active zones
         st.markdown('<div class="section-header">📍 Active Zones</div>',
                     unsafe_allow_html=True)
         cam_cfg = st.session_state.rule_engine.get_config("camera_1")
@@ -737,13 +652,7 @@ def page_live_monitor() -> None:
             st.caption("No zones configured")
 
 
-# ╔═════════════════════════════════════════════════════════════════════════╗
-# ║  PAGE: INCIDENT LOG                                                    ║
-# ╚═════════════════════════════════════════════════════════════════════════╝
-
 def page_incident_log() -> None:
-    """Searchable incident history with filters and CSV export."""
-    # Logo at top center
     components.html(get_logo_html(theme=_THEME), height=70)
 
     st.markdown(
@@ -765,7 +674,7 @@ def page_incident_log() -> None:
 
     if df.empty:
         st.markdown(
-            f'<div style="text-align:center;padding:4rem;color:{_TC["muted"]};">' 
+            f'<div style="text-align:center;padding:4rem;color:{_TC["muted"]};">'
             f'<div style="font-size:3rem;">📜</div>'
             f'<div style="font-size:1.1rem;margin-top:1rem;color:{_TC["text"]};'
             f'font-family:\'{_TC["font_display"]}\',sans-serif;">No incidents recorded yet</div>'
@@ -774,7 +683,6 @@ def page_incident_log() -> None:
         )
         return
 
-    # KPI summary
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(render_kpi_card("📊", len(df), "Total Records", "kpi-info"),
@@ -794,7 +702,6 @@ def page_incident_log() -> None:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Filters
     f1, f2, f3 = st.columns(3)
     with f1:
         type_filter = st.multiselect("🏷️ Incident Type",
@@ -810,15 +717,14 @@ def page_incident_log() -> None:
         filtered = filtered[filtered["incident_type"].isin(type_filter)]
     if sev_filter and "severity" in filtered.columns:
         filtered = filtered[filtered["severity"].isin(sev_filter)]
-    
-    # Filter by date if timestamp column exists
+
     if "timestamp" in filtered.columns:
         try:
             filtered["timestamp"] = pd.to_datetime(filtered["timestamp"], errors="coerce")
             cutoff_date = pd.Timestamp.now() - pd.Timedelta(days=days_back)
             filtered = filtered[filtered["timestamp"] >= cutoff_date]
         except Exception:
-            pass  # If date filtering fails, continue without it
+            pass
 
     st.dataframe(
         filtered, use_container_width=True, height=400,
@@ -840,13 +746,7 @@ def page_incident_log() -> None:
     )
 
 
-# ╔═════════════════════════════════════════════════════════════════════════╗
-# ║  PAGE: ANALYTICS                                                       ║
-# ╚═════════════════════════════════════════════════════════════════════════╝
-
 def page_analytics() -> None:
-    """Charts, trends, and pattern analysis."""
-    # Logo at top center
     components.html(get_logo_html(theme=_THEME), height=70)
 
     st.markdown(
@@ -866,7 +766,7 @@ def page_analytics() -> None:
 
     if df.empty:
         st.markdown(
-            f'<div style="text-align:center;padding:4rem;color:{_TC["muted"]};">' 
+            f'<div style="text-align:center;padding:4rem;color:{_TC["muted"]};">'
             f'<div style="font-size:3rem;">📊</div>'
             f'<div style="font-size:1.1rem;margin-top:1rem;color:{_TC["text"]};'
             f'font-family:\'{_TC["font_display"]}\',sans-serif;">No analytics data yet</div>'
@@ -877,7 +777,6 @@ def page_analytics() -> None:
 
     _layout = get_plotly_theme_template(_THEME)
 
-    # KPIs
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(render_kpi_card("📊", stats["total"], "All-Time Incidents", "kpi-info"),
@@ -895,7 +794,6 @@ def page_analytics() -> None:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Row 1: type & severity — Plotly bar charts
     c1, c2 = st.columns(2)
     with c1:
         st.markdown('<div class="section-header">📈 INCIDENTS BY TYPE</div>',
@@ -921,7 +819,6 @@ def page_analytics() -> None:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Timeline — Plotly area chart
     st.markdown('<div class="section-header">📅 INCIDENT TIMELINE</div>',
                 unsafe_allow_html=True)
     try:
@@ -942,7 +839,6 @@ def page_analytics() -> None:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Row 2: camera & hourly — Plotly
     c3, c4 = st.columns(2)
     with c3:
         st.markdown('<div class="section-header">🎥 BY CAMERA</div>',
@@ -969,13 +865,7 @@ def page_analytics() -> None:
             st.info("Insufficient data for hourly analysis")
 
 
-# ╔═════════════════════════════════════════════════════════════════════════╗
-# ║  PAGE: CONFIGURATION                                                   ║
-# ╚═════════════════════════════════════════════════════════════════════════╝
-
 def page_configuration() -> None:
-    """Camera, zone, alert, and detection parameter settings."""
-    # Logo at top center
     components.html(get_logo_html(theme=_THEME), height=70)
 
     st.markdown(
@@ -994,7 +884,6 @@ def page_configuration() -> None:
     selected = (st.sidebar.selectbox("Active Camera", list(cameras.keys()))
                 if cameras else None)
 
-    # --- Tab: Cameras --------------------------------------------------------
     with tab_cam:
         st.markdown('<div class="section-header">CAMERA CONFIGURATION</div>',
                     unsafe_allow_html=True)
@@ -1022,7 +911,6 @@ def page_configuration() -> None:
                 st.session_state.rule_engine.update_config(selected, cam)
                 st.success("Camera configuration saved!")
 
-    # --- Tab: Zones ----------------------------------------------------------
     with tab_zone:
         st.markdown('<div class="section-header">RESTRICTED ZONE MANAGEMENT</div>',
                     unsafe_allow_html=True)
@@ -1048,13 +936,10 @@ def page_configuration() -> None:
             st.markdown("#### 📍 Add New Restricted Zone")
 
             src = cam.get("source", "0")
-            
-            # Show current source info
             st.caption(f"🎥 Current source: `{src}`")
-            
+
             if st.button("📸 Capture Frame", key="cap_frame"):
                 try:
-                    # Convert source to appropriate type
                     if src.isdigit():
                         source = int(src)
                         st.info(f"🎥 Attempting to open webcam (index {source})...")
@@ -1069,15 +954,13 @@ def page_configuration() -> None:
                         else:
                             st.error(f"❌ File not found: {source}\n\nFull path checked: {abs_path}")
                             raise FileNotFoundError(f"Video file not found: {source}")
-                    
-                    # Try with DirectShow backend first (better for Windows webcams)
+
                     cap = cv2.VideoCapture(source, cv2.CAP_DSHOW) if isinstance(source, int) else cv2.VideoCapture(source)
-                    
+
                     if not cap.isOpened():
-                        # Retry without DirectShow
                         cap.release()
                         cap = cv2.VideoCapture(source)
-                    
+
                     if not cap.isOpened():
                         st.error(f"❌ Cannot open camera/video source: {src}")
                         if isinstance(source, int):
@@ -1115,7 +998,6 @@ def page_configuration() -> None:
             if "reference_frame" in st.session_state:
                 _zone_editor(zones, cam, selected)
 
-    # --- Tab: Alerts ---------------------------------------------------------
     with tab_alert:
         st.markdown('<div class="section-header">ALERT CONFIGURATION</div>',
                     unsafe_allow_html=True)
@@ -1164,7 +1046,6 @@ def page_configuration() -> None:
                     "email_enabled": email_on, "sound_enabled": sound_on,
                     "cooldown_seconds": cd, "default_recipient": recipient,
                 })
-                # Save SMTP settings to .env file
                 env_path = Path(__file__).parent.parent / ".env"
                 env_lines = [
                     f"SMTP_SERVER={smtp_server}",
@@ -1174,7 +1055,6 @@ def page_configuration() -> None:
                     f"DEFAULT_ALERT_EMAIL={recipient}",
                 ]
                 env_path.write_text("\n".join(env_lines) + "\n")
-                # Update the running alert manager
                 am = st.session_state.alert_manager
                 am.smtp_server = smtp_server
                 am.smtp_port = int(smtp_port)
@@ -1192,7 +1072,6 @@ def page_configuration() -> None:
                 elif not sender_email or not sender_password:
                     st.error("Enter SMTP sender email and password first.")
                 else:
-                    # Temporarily apply settings for test
                     am = st.session_state.alert_manager
                     am.smtp_server = smtp_server
                     am.smtp_port = int(smtp_port)
@@ -1205,7 +1084,6 @@ def page_configuration() -> None:
                         "confidence": 1.0, "track_id": 0,
                         "bbox": (0, 0, 100, 100),
                     }
-                    # Create a simple test frame
                     test_frame = np.zeros((480, 640, 3), dtype=np.uint8)
                     cv2.putText(test_frame, "SafeWatch AI - Test Alert",
                                 (50, 240), cv2.FONT_HERSHEY_SIMPLEX, 1.0,
@@ -1218,7 +1096,6 @@ def page_configuration() -> None:
                     else:
                         st.error("Email failed. Check SMTP settings and use a Gmail App Password.")
 
-    # --- Tab: Detection ------------------------------------------------------
     with tab_det:
         st.markdown('<div class="section-header">DETECTION PARAMETERS</div>',
                     unsafe_allow_html=True)
@@ -1252,16 +1129,10 @@ def page_configuration() -> None:
                         unsafe_allow_html=True)
 
 
-# ---------------------------------------------------------------------------
-# Zone editor helper (used inside configuration → zones tab)
-# ---------------------------------------------------------------------------
-
 def _zone_editor(zones: list, cam: dict, selected_camera: str) -> None:
-    """Grid overlay + coordinate inputs for defining a new polygon zone."""
     ref = st.session_state.reference_frame.copy()
     h, w = ref.shape[:2]
 
-    # Draw coordinate grid
     for x in range(0, w, 100):
         cv2.line(ref, (x, 0), (x, h), (100, 100, 100), 1)
         cv2.putText(ref, str(x), (x + 2, 15),
@@ -1271,7 +1142,6 @@ def _zone_editor(zones: list, cam: dict, selected_camera: str) -> None:
         cv2.putText(ref, str(y), (2, y + 12),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
 
-    # Draw existing zones in red
     for z in zones:
         pts = np.array(z.get("points", []), np.int32)
         if len(pts) >= 3:
@@ -1281,7 +1151,6 @@ def _zone_editor(zones: list, cam: dict, selected_camera: str) -> None:
              caption=f"Reference ({w}×{h}) — Red = existing zones",
              use_container_width=True)
 
-    # Input fields
     c1, c2 = st.columns(2)
     with c1:
         zname = st.text_input("Zone Name", "New Restricted Zone", key="zn")
@@ -1306,7 +1175,6 @@ def _zone_editor(zones: list, cam: dict, selected_camera: str) -> None:
         x4 = st.number_input("X4", 0, w, 100, key="zx4")
         y4 = st.number_input("Y4", 0, h, 300, key="zy4")
 
-    # Live preview in green
     new_pts = [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
     preview = st.session_state.reference_frame.copy()
     cv2.polylines(preview, [np.array(new_pts, np.int32)], True, (0, 255, 0), 3)
@@ -1323,10 +1191,6 @@ def _zone_editor(zones: list, cam: dict, selected_camera: str) -> None:
         st.rerun()
 
 
-# ╔═════════════════════════════════════════════════════════════════════════╗
-# ║  MAIN                                                                  ║
-# ╚═════════════════════════════════════════════════════════════════════════╝
-
 _PAGES = {
     "🏠 Overview":      page_overview,
     "🎥 Live Monitor":  page_live_monitor,
@@ -1337,7 +1201,6 @@ _PAGES = {
 
 
 def main() -> None:
-    """Render sidebar, then dispatch to the selected page."""
     page = render_sidebar()
     _PAGES[page]()
 

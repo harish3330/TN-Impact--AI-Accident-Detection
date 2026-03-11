@@ -1,5 +1,3 @@
-"""Multi-channel alert manager – snapshots, email, sound."""
-
 import logging
 import os
 import smtplib
@@ -22,41 +20,32 @@ logger = logging.getLogger(__name__)
 
 
 class AlertManager:
-    """Save snapshots, play sounds, and email alerts for safety incidents."""
 
     def __init__(self, incident_dir: str = "data/incidents", config: Dict = None):
         self.incident_dir = Path(incident_dir)
         self.incident_dir.mkdir(parents=True, exist_ok=True)
 
-        # SMTP settings from .env
         self.smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
         self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
         self.sender_email = os.getenv("ALERT_EMAIL", "")
         self.sender_password = os.getenv("ALERT_PASSWORD", "")
 
-        # Cooldown tracking  {alert_key: last_datetime}
         self._last_alert: Dict[str, datetime] = {}
         self.cooldown_seconds = 5
-        
-        # Sound alert setting from config
+
         if config and "alerts" in config:
             self.sound_enabled = config["alerts"].get("sound_enabled", True)
             self.cooldown_seconds = config["alerts"].get("cooldown_seconds", 30)
         else:
-            self.sound_enabled = True  # Default to enabled
+            self.sound_enabled = True
 
         if self.sender_email and self.sender_password:
             logger.info("Email alerts enabled (%s)", self.sender_email)
         else:
-            logger.warning("Email alerts disabled (ALERT_EMAIL / ALERT_PASSWORD missing)")
-            
-        logger.info("Sound alerts %s", "enabled" if self.sound_enabled else "disabled")
-
-    # ── public API ──────────────────────────────────────────────────
+            logger.warning("Email alerts disabled — credentials missing")
 
     def send_alert(self, incident: Dict, frame: np.ndarray,
                    recipient_email: Optional[str] = None) -> bool:
-        """Dispatch an alert through all channels. Returns ``True`` on success."""
         if not self._cooldown_ok(incident):
             return False
 
@@ -80,12 +69,9 @@ class AlertManager:
         self.cooldown_seconds = seconds
 
     def get_incident_history(self, limit: int = 50) -> list[str]:
-        """Return paths to the most recent snapshot JPEGs."""
         files = sorted(self.incident_dir.glob("*.jpg"),
                        key=lambda p: p.stat().st_ctime, reverse=True)
         return [str(f) for f in files[:limit]]
-
-    # ── internals ───────────────────────────────────────────────────
 
     def _cooldown_ok(self, incident: Dict) -> bool:
         key = f"{incident['camera_id']}_{incident['type']}"
@@ -97,7 +83,6 @@ class AlertManager:
         return True
 
     def _save_snapshot(self, frame: np.ndarray, incident: Dict) -> Optional[Path]:
-        """Annotate and save a JPEG snapshot of the incident."""
         try:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
             name = f"{incident.get('type', 'UNK')}_{incident.get('camera_id', 'cam')}_{ts}.jpg"
@@ -146,11 +131,10 @@ class AlertManager:
                     import time
                     time.sleep(0.05)
         except Exception as e:
-            logger.warning(f"Sound alert failed: {e}")
+            logger.warning("Sound alert failed: %s", e)
 
     def _send_email(self, incident: Dict, snapshot: Optional[Path],
                     recipient: str) -> bool:
-        """Compose and send an HTML-free plain-text email with snapshot."""
         try:
             msg = MIMEMultipart()
             msg["From"] = self.sender_email
@@ -169,7 +153,7 @@ class AlertManager:
                 f"Details    : {incident.get('details', '-')}\n"
                 f"Confidence : {incident.get('confidence', 0):.0%}\n"
                 f"Track ID   : {incident.get('track_id', '-')}\n\n"
-                f"-- SafeWatch AI (automated alert)"
+                f"-- SafeWatch AI"
             )
             msg.attach(MIMEText(body, "plain"))
 
@@ -191,8 +175,7 @@ class AlertManager:
             return True
 
         except smtplib.SMTPAuthenticationError:
-            logger.error("SMTP auth failed – use a Gmail App Password "
-                         "(https://myaccount.google.com/apppasswords)")
+            logger.error("SMTP auth failed — check App Password")
             return False
         except Exception as exc:
             logger.error("Email send failed: %s", exc)
